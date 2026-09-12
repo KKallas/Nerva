@@ -18,4 +18,6 @@ Rules that keep this project simple:
 - `/` is first of all a lookup tool: search box on top, instant, local, offline. Never make search wait on the server.
 - Mobile first. `/` must work one-handed on a phone at the shelf, offline except for pressing a verb.
 - Follow the build order in PLAN.md section 9. Finish a step fully (page + API + test) before starting the next.
+- `data/config.json` holds settings a user can change (`/settings`). `data/runtime.json` is not settings: it holds the address the app is currently reachable on, written by `bin/tunnel.js` and cleared on exit.
+- Printed QR labels resolve their address as: live tunnel, then `BASE_URL`, then the request host.
 - Never commit `data/` or `.env`.

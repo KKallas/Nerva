@@ -6,12 +6,15 @@ window.Nerva = (function () {
 
   // --- catalogue: serve the cache immediately, refresh from the server behind it ---
   let catalogue = [];
+  let config = { labName: 'Robotics lab', lowStock: 2, loanDays: 14 };
   try { catalogue = JSON.parse(get('nerva.catalogue') || '[]'); } catch {}
+  try { config = { ...config, ...JSON.parse(get('nerva.config') || '{}') }; } catch {}
   function loadCatalogue(onReady) {
     if (catalogue.length) onReady(catalogue, 'cached');
     return fetch('/api/catalogue.json').then(r => r.json()).then(d => {
       catalogue = d.items;
       set('nerva.catalogue', JSON.stringify(catalogue));
+      if (d.config) { config = d.config; set('nerva.config', JSON.stringify(config)); }
       onReady(catalogue, 'fresh');
       return catalogue;
     }).catch(() => { onReady(catalogue, catalogue.length ? 'offline' : 'empty'); });
@@ -25,7 +28,7 @@ window.Nerva = (function () {
 
   // --- nav, same on every page ---
   function nav(current) {
-    const tabs = [['/', 'Checkout'], ['/items', 'Items'], ['/locations', 'Locations', 'soon']];
+    const tabs = [['/', 'Checkout'], ['/items', 'Items'], ['/locations', 'Locations', 'soon'], ['/settings', '⚙︎']];
     document.body.insertAdjacentHTML('afterbegin', `<nav class="tabs">${tabs.map(([href, label, soon]) =>
       `<a href="${href}"${href === current ? ' aria-current="page"' : ''}${soon ? ' class="soon" title="coming later"' : ''}>${label}${
         href === '/' && listCount() ? ` <span class="tag">${listCount()}</span>` : ''}</a>`).join('')}<span class="grow"></span><span class="status" id="navstatus"></span></nav>`);
@@ -99,11 +102,11 @@ window.Nerva = (function () {
   // The cached catalogue is stale the moment anything is written. Quietly refetch.
   function refreshCatalogue() {
     return fetch('/api/catalogue.json').then(r => r.json())
-      .then(d => { catalogue = d.items; set('nerva.catalogue', JSON.stringify(catalogue)); })
+      .then(d => { catalogue = d.items; set('nerva.catalogue', JSON.stringify(catalogue)); if (d.config) { config = d.config; set('nerva.config', JSON.stringify(config)); } })
       .catch(() => {});
   }
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  return { esc, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, listText, setList, addLine, listCount,
+  return { esc, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
     nav, status, itemRow, wireAdd, resizePhoto, pickPhoto, uploadPhoto, removePhoto, deleteItem };
 })();

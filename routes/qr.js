@@ -7,7 +7,19 @@ const QRCode = require('qrcode');
 module.exports = function qrRoutes(store) {
   const router = express.Router();
 
-  const baseUrl = req => (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  // What a scanned label should open. A live tunnel wins, because starting one
+  // is an explicit "I am testing on my phone now" and a stale BASE_URL left in
+  // .env would otherwise send every label to an address that does not exist.
+  // Then a configured address, then whatever host this request came in on.
+  const baseUrl = req => (store.runtime.publicUrl || process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+
+  // QR of arbitrary text, used by the settings page for this instance's address
+  router.get('/api/qr.svg', async (req, res) => {
+    const text = String(req.query.text || '').slice(0, 512);
+    if (!text) return res.status(400).send('text required');
+    const svg = await QRCode.toString(text, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
+    res.type('image/svg+xml').send(svg);
+  });
 
   router.get('/api/items/:id/qr.svg', async (req, res) => {
     const id = String(req.params.id).toLowerCase();

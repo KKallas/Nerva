@@ -22,7 +22,19 @@ npm start                 # http://localhost:3000
 npm test                  # unit tests for parser, search, store, verbs
 ```
 
-Open it on a phone on the same Wi-Fi with `http://<your-ip>:3000`. Camera scanning will need HTTPS (step 2, Caddyfile).
+To use it from your phone before there is a server anywhere:
+
+```sh
+npm run phone      # stop `npm start` first, or use PORT=3001 npm run phone
+```
+
+That starts Nerva and prints a QR code for the Wi-Fi address, so a phone on the
+same network can scan and start straight away. In parallel it asks Cloudflare
+for a temporary public HTTPS address (`cloudflared` quick tunnel) and prints a
+second QR if one comes up, which also works off the lab network. Both addresses,
+with their QR codes, are on the Settings page. The public one is unauthenticated
+and changes on every run, so treat it as a test address and do not print labels
+from it.
 
 ## Status
 

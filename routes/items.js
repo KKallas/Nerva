@@ -9,7 +9,7 @@ module.exports = function itemRoutes(store) {
 
   router.get('/api/catalogue.json', (req, res) => {
     res.set('Cache-Control', 'no-cache');
-    res.json({ generatedAt: new Date().toISOString(), items: store.catalogue() });
+    res.json({ generatedAt: new Date().toISOString(), config: store.config, items: store.catalogue() });
   });
 
   router.get('/api/items', (req, res) => {

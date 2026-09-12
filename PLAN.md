@@ -176,6 +176,7 @@ One app page does nearly everything; the rest are small.
 | `/incomplete`        | admin | Sets with missing parts, `fix` button                       |
 | `/labels?ids=a,b,c`  | all   | Printable A4 sheet of QR labels (QR + name + id + location). Items passes whatever the filters currently show, so a filter doubles as a selection. |
 | `/hello`             | all   | "Who are you?" – email + name, sets the cookie. Shown the first time you file. |
+| `/settings`          | all   | How to reach this instance right now: QR codes for the Wi-Fi address, the temporary public tunnel, or a configured address. Lab name, low-stock threshold, loan period. Item and photo counts, data folder. |
 | `/admin`             | admin | Users & roles, export zip, CSV import                       |
 
 Mobile first: the main use is one hand holding a phone at the shelf. Everything on `/` works offline except pressing a verb.
@@ -230,6 +231,7 @@ server.js              starts Express, mounts routes, nothing else
 lib/store.js           load/save JSON files, atomic writes, in-memory maps, log()
 lib/parse.js           the list parser (also served to the browser as-is)
 lib/who.js             cookie / X-Who identity, requireAdmin()
+lib/net.js             which addresses this machine is reachable on
 verbs/find.js          one file per verb, same signature:
 verbs/out.js             module.exports = async (lines, who, store) => results
 verbs/in.js
@@ -239,6 +241,7 @@ verbs/fix.js
 routes/items.js        item read + delete
 routes/photos.js       photo upload and removal
 routes/qr.js           qr.svg / qr.png and the label sheet
+routes/settings.js     config, instance status, addresses
 routes/file.js         POST /api/file → picks verbs/<verb>.js by name
 routes/loans.js
 routes/admin.js
@@ -248,6 +251,8 @@ public/index.html      checkout: search + list (page-specific JS inline, no impo
 public/items.html      the catalogue: grouping, filter chips, data gaps
 public/item.html       one item
 public/labels.html     print sheet
+public/settings.html   addresses, lab settings, status
+bin/tunnel.js          npm run phone: server + Cloudflare quick tunnel + QR
 public/parse.js        symlink/copy of lib/parse.js
 public/sw.js           service worker
 bin/nerva              CLI, ~80 lines, calls POST /api/file
@@ -264,6 +269,8 @@ Conventions that make LLM edits safe:
 ## 8. Operations
 
 - **Run:** `cp .env.example .env`, set `SESSION_SECRET` and `ADMIN_EMAILS`, `npm install`, `node server.js`. Or `docker compose up`.
+- **Try it on a phone before there is a server:** `npm run phone` starts the app, prints a QR for the Wi-Fi address, and asks Cloudflare for a temporary public HTTPS address (`cloudflared` quick tunnel), printing a QR for that too. The public address is written to `data/runtime.json` so QR labels use it, and cleared on exit. It is unauthenticated and changes every run: a test address, not a deployment. Networks that block `api.trycloudflare.com` get the Wi-Fi address only.
+- **Address used by printed labels:** a live tunnel, else `BASE_URL`, else the host the request came in on. Set `BASE_URL` before printing labels for real.
 - **HTTPS:** Caddy with two lines of config (`Caddyfile` provided). Needed because phone browsers only allow the camera on HTTPS.
 - **Backup:** `data/` is the whole system. Nightly `rsync` or `zip` from cron, or the *Export* button in `/admin`.
 - **Restore:** copy the folder back, restart.

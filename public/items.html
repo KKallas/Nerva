@@ -42,11 +42,10 @@ const $ = s => document.querySelector(s);
 const esc = Nerva.esc;
 Nerva.nav('/items');
 
-const LOW = 2;
 const FILTERS = {
   all:    { label: 'all',          test: () => true },
   set:    { label: 'sets',         test: i => i.kind === 'set' },
-  low:    { label: 'low stock',    test: i => (i.quantity ?? 0) <= LOW },
+  low:    { label: 'low stock',    test: i => (i.quantity ?? 0) <= Nerva.config.lowStock },
   nophoto:{ label: 'no photo',     test: i => !i.photo },
   noloc:  { label: 'no location',  test: i => !i.location },
 };
