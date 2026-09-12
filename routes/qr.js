@@ -29,6 +29,13 @@ module.exports = function qrRoutes(store) {
     res.type('image/svg+xml').set('Cache-Control', 'public, max-age=3600').send(svg);
   });
 
+  router.get('/api/places/:id/qr.png', async (req, res) => {
+    const id = String(req.params.id).toLowerCase();
+    if (!store.resolvePlace(id)) return res.status(404).send('no such place');
+    const png = await QRCode.toBuffer(`${baseUrl(req)}/l/${id}`, { margin: 1, width: Number(req.query.w) || 512 });
+    res.type('image/png').set('Cache-Control', 'public, max-age=3600').send(png);
+  });
+
   router.get('/api/items/:id/qr.svg', async (req, res) => {
     const id = String(req.params.id).toLowerCase();
     if (!store.resolve(id)) return res.status(404).send('no such item');
@@ -45,6 +52,9 @@ module.exports = function qrRoutes(store) {
 
   // /labels?ids=a,b,c  – an A4 sheet to print and stick on shelves and boxes.
   router.get('/labels', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'labels.html')));
+
+  // /sticker?id=x – one label sized for a 2x3" pocket sticker printer.
+  router.get('/sticker', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'sticker.html')));
 
   return router;
 };

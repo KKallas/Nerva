@@ -135,7 +135,7 @@ A product is either **bulk** or **tracked**, and that single flag decides how QR
 | Quantity | a number you count and correct | however many units exist, derived |
 | Borrowing | "three of these" | "this one, number 2" |
 
-Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
+Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. The product page lists every unit with its own QR beside it, and the one you arrived from is outlined, so a code in your hand matches a row on screen. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
 
 ### Item (`data/items/<id>.json`)
 
@@ -213,7 +213,8 @@ One app page does nearly everything; the rest are small.
 | `/i/<id>/edit`       | admin | Edit fields, contents (for sets), take / upload photos (`<input capture>`) |
 | `/loans`             | all   | My open loans (everyone), all open loans + overdue (admin)   |
 | `/incomplete`        | admin | Sets with missing parts, `fix` button                       |
-| `/labels?ids=a,b,c`  | all   | Printable A4 sheet of QR labels (QR + name + id + location). Items passes whatever the filters currently show, so a filter doubles as a selection. |
+| `/labels?ids=a,b,c`  | all   | Printable A4 sheet of QR labels (QR + name + id + location). Items passes whatever the filters currently show, so a filter doubles as a selection. `?places=all` prints one for every shelf. |
+| `/sticker?id=x`      | all   | One label drawn at 2:3 for a pocket sticker printer. Hands the image to the phone's share sheet, so it lands in the printer's own app. |
 | `/hello`             | all   | "Who are you?" – email + name, sets the cookie. Shown the first time you file. |
 | `/settings`          | all   | How to reach this instance right now: QR codes for the Wi-Fi address, the temporary public tunnel, or a configured address. Lab name, low-stock threshold, loan period. Item and photo counts, data folder. |
 | `/admin`             | admin | Users & roles, export zip, CSV import                       |
@@ -315,6 +316,7 @@ public/labels.html     print sheet
 public/settings.html   addresses, lab settings, status
 public/locations.html  locations and their shelves
 public/place.html      one location or shelf, and what is on it
+public/sticker.html    one 2x3" label for a pocket sticker printer
 public/paint.js        darken a photo and finger-paint the highlight
 bin/tunnel.js          npm run phone: server + Cloudflare quick tunnel + QR
 public/parse.js        symlink/copy of lib/parse.js
@@ -336,6 +338,7 @@ Conventions that make LLM edits safe:
 - **Try it on a phone before there is a server:** `npm run phone` starts the app, prints a QR for the Wi-Fi address, and asks Cloudflare for a temporary public HTTPS address (`cloudflared` quick tunnel), printing a QR for that too. The public address is written to `data/runtime.json` so QR labels use it, and cleared on exit. It is unauthenticated and changes every run: a test address, not a deployment. Networks that block `api.trycloudflare.com` get the Wi-Fi address only.
 - **Address used by printed labels:** a live tunnel, else `BASE_URL`, else the host the request came in on. Set `BASE_URL` before printing labels for real.
 - **HTTPS:** Caddy with two lines of config (`Caddyfile` provided). Needed because phone browsers only allow the camera on HTTPS.
+- **Labels on a pocket sticker printer:** ZINK printers such as the Liene Pearl take photos over Bluetooth from their own app and speak no printing protocol, so nothing can print to them directly. `/sticker?id=x` draws the label at 2:3 and hands the PNG to the phone's share sheet (`navigator.share` with a file), from which you pick the printer's app; where sharing files is unavailable the image saves to the photo library instead. The paper is sticky-backed, so the print is the sticker. For a whole batch, the A4 sheet at `/labels` on ordinary sticker paper is far quicker.
 - **Backup:** `data/` is the whole system. Nightly `rsync` or `zip` from cron, or the *Export* button in `/admin`.
 - **Restore:** copy the folder back, restart.
 - **Migrations:** none. New fields are optional; old JSON keeps working.

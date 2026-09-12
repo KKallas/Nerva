@@ -6,6 +6,8 @@ Need M5 bolts? Open Nerva, type `m5`, see the drawer and a photo of it. Beyond l
 
 - Every item has a photo, a photo of where it lives, and a QR code that opens its page.
 - Locations and shelves are records of their own, each with a photo and a QR. Scan a drawer to see what belongs in it.
+- Numbered things list every unit with its QR, highlighting the one you just scanned.
+- Labels print as an A4 sheet, or one at a time to a 2x3" pocket sticker printer through the phone's share sheet.
 - Photos can be darkened and finger-painted, so a picture of a full shelf still says which thing is meant.
 - Bolts are a box with a quantity and one QR. An oscilloscope or a soldering set is numbered instead, so each physical one carries its own QR at `<id>-1`, `<id>-2`, and can be lent out on its own.
 - Sets (e.g. soldering sets) are lent out and checked back in; missing parts are noted on the same list and replaced from stock.

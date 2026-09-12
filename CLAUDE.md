@@ -23,4 +23,5 @@ Rules that keep this project simple:
 - Follow the build order in PLAN.md section 9. Finish a step fully (page + API + test) before starting the next.
 - `data/config.json` holds settings a user can change (`/settings`). `data/runtime.json` is not settings: it holds the address the app is currently reachable on, written by `bin/tunnel.js` and cleared on exit.
 - Printed QR labels resolve their address as: live tunnel, then `BASE_URL`, then the request host.
+- Two label paths: `/labels` for an A4 sheet, `/sticker?id=x` for one 2x3" pocket-printer sticker shared to the phone. Pocket ZINK printers have no protocol to print to, so never promise direct printing.
 - Never commit `data/` or `.env`.

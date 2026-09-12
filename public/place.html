@@ -50,7 +50,8 @@ async function load() {
     <div class="card"><h2>Label</h2><div class="qrbox">
       <img src="/api/places/${place.id}/qr.svg" alt="QR code">
       <div><p class="muted" style="margin:0 0 8px">Stick this on the ${place.kind}. Scanning it shows what belongs here.</p>
-      <a class="btn" href="/labels?places=${place.id}">Print label</a></div>
+      <a class="btn" href="/labels?places=${place.id}">Print sheet</a>
+      <a class="btn" href="/sticker?id=${place.id}">Sticker printer</a></div>
     </div></div>
     <p class="err" id="err" hidden></p>`;
   wire();

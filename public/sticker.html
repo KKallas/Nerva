@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sticker · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  h1 { font-size:19px; margin:4px 0 8px; }
+  .preview { display:flex; justify-content:center; margin:14px 0; }
+  /* shown at 2:3, the shape of the paper */
+  canvas { width:220px; height:330px; background:#fff; border:1px solid var(--line); border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,.12); }
+  .steps { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:12px 0; }
+  .steps h2 { font-size:13px; color:var(--muted); margin:0 0 8px; text-transform:uppercase; letter-spacing:.05em; }
+  .steps ol { margin:0; padding-left:20px; }
+  .steps li { margin-bottom:6px; }
+  .err { color:var(--bad); font-size:14px; }
+  @media print {
+    @page { size:2in 3in; margin:0; }
+    nav.tabs, .noprint { display:none !important; }
+    body { padding:0; max-width:none; }
+    .preview { margin:0; }
+    canvas { width:2in; height:3in; border:0; border-radius:0; box-shadow:none; }
+  }
+</style>
+</head>
+<body>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<div class="noprint"><h1 id="title">Sticker</h1></div>
+<div class="preview"><canvas id="c" width="1200" height="1800"></canvas></div>
+<div class="noprint">
+  <div class="btnrow">
+    <button class="btn primary" id="share" hidden>Send to printer app</button>
+    <button class="btn" id="save">Save image</button>
+    <button class="btn" id="print">Print</button>
+  </div>
+  <p class="err" id="err" hidden></p>
+  <div class="steps">
+    <h2>On a 2×3&quot; pocket printer</h2>
+    <ol id="how"></ol>
+    <p class="muted" style="margin:8px 0 0">The paper is sticky-backed, so the print is the sticker. These printers take photos from their own app over Bluetooth, so Nerva hands the image to that app rather than printing directly.</p>
+  </div>
+  <div class="btnrow"><a class="btn" id="back" href="/items">Back</a></div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = Nerva.esc;
+Nerva.nav('/items');
+const id = (new URLSearchParams(location.search).get('id') || '').toLowerCase();
+let label = null, blob = null;
+
+load();
+async function load() {
+  label = await describe(id);
+  if (!label) { $('#title').textContent = 'Unknown id'; $('#err').textContent = `Nothing here with the id ${id}.`; $('#err').hidden = false; return; }
+  document.title = label.name + ' · sticker';
+  $('#title').textContent = label.name;
+  $('#back').href = label.back;
+  await paint();
+  blob = await new Promise(r => $('#c').toBlob(r, 'image/png'));
+  const file = new File([blob], `nerva-${label.id}.png`, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) $('#share').hidden = false;
+  $('#how').innerHTML = (navigator.canShare && navigator.canShare({ files: [file] })
+    ? ['Tap <b>Send to printer app</b>.', 'Pick your printer app, for example Liene Photo, in the share sheet.', 'Print it. Peel and stick.']
+    : ['Tap <b>Save image</b> to put it in your photos.', 'Open your printer app, for example Liene Photo.', 'Choose this image, print, peel and stick.']
+  ).map(s => `<li>${s}</li>`).join('');
+}
+
+// Works for an item, one of its units, or a place.
+async function describe(id) {
+  const item = await fetch('/api/items/' + id).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (item) return {
+    id: item.unitId || item.id,
+    name: item.name + (item.unit ? ` #${item.unit.n}` : ''),
+    sub: item.location || '',
+    qr: `/api/items/${item.unitId || item.id}/qr.png?w=1000`,
+    back: '/i/' + (item.unitId || item.id),
+  };
+  const place = await fetch('/api/places/' + id).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (place) return { id: place.id, name: place.name, sub: place.kind, qr: `/api/places/${place.id}/qr.png?w=1000`, back: '/l/' + place.id };
+  return null;
+}
+
+// 2:3, the shape of the paper. Black on white and as large as it fits: these
+// printers are low contrast, and the sticker is read from arm's length.
+// The QR and the caption are centred as one block, so no edge is crowded.
+async function paint() {
+  const c = $('#c'), x = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const pad = 80;                 // ~0.13in of quiet edge, which printers may trim
+  const maxW = W - pad * 2;
+  x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+  x.textAlign = 'center';
+
+  const qr = new Image();
+  qr.src = label.qr;
+  await qr.decode();
+
+  const NAME = 'bold 92px system-ui, sans-serif';
+  const ID = '58px ui-monospace, Menlo, monospace';
+  const SUB = '50px system-ui, sans-serif';
+  const nameLines = fit(x, label.name, maxW, NAME, 2);
+  const subLines = label.sub ? fit(x, label.sub, maxW, SUB, 1) : [];
+
+  const gap = 56;
+  const textH = nameLines.length * 100 + 74 + (subLines.length ? subLines.length * 62 : 0);
+  const qrSize = Math.min(maxW, H - pad * 2 - gap - textH);
+  let y = Math.max(pad, (H - (qrSize + gap + textH)) / 2);
+
+  x.drawImage(qr, (W - qrSize) / 2, y, qrSize, qrSize);
+  y += qrSize + gap;
+
+  x.fillStyle = '#000'; x.font = NAME;
+  for (const line of nameLines) { y += 92; x.fillText(line, W / 2, y); y += 8; }
+
+  x.fillStyle = '#333'; x.font = ID;
+  y += 66; x.fillText(label.id, W / 2, y);
+
+  if (subLines.length) {
+    x.fillStyle = '#666'; x.font = SUB;
+    for (const line of subLines) { y += 62; x.fillText(line, W / 2, y); }
+  }
+}
+
+// Break text into at most `maxLines` lines, ellipsing whatever does not fit.
+function fit(ctx, text, maxWidth, font, maxLines) {
+  ctx.font = font;
+  const lines = [];
+  let line = '';
+  for (const w of String(text).split(/\s+/)) {
+    const next = line ? line + ' ' + w : w;
+    if (ctx.measureText(next).width > maxWidth && line) { lines.push(line); line = w; } else line = next;
+  }
+  if (line) lines.push(line);
+  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/\S{0,2}$/, '…'); }
+  return lines;
+}
+
+$('#share').onclick = async () => {
+  const file = new File([blob], `nerva-${label.id}.png`, { type: 'image/png' });
+  try { await navigator.share({ files: [file], title: label.name }); }
+  catch (e) { if (e.name !== 'AbortError') { $('#err').textContent = 'Could not open the share sheet: ' + e.message; $('#err').hidden = false; } }
+};
+$('#save').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nerva-${label.id}.png`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+$('#print').onclick = () => print();
+</script>
+</body>
+</html>

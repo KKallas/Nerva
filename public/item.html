@@ -25,11 +25,18 @@
   .qrbox img { width:96px; height:96px; background:#fff; padding:4px; border-radius:6px; }
   .units { display:flex; flex-direction:column; gap:6px; }
   .unit { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--bg); }
-  .unit .n { font-weight:700; font-variant-numeric:tabular-nums; min-width:40px; }
-  .unit a.open { flex:1; text-decoration:none; color:var(--accent); font-size:14px; }
+  .unit img.qr { width:52px; height:52px; flex:none; background:#fff; padding:3px; border-radius:4px; }
+  .unit .n { font-weight:700; font-variant-numeric:tabular-nums; min-width:34px; }
+  .unit .mid { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .unit .mid a { color:var(--accent); font-size:14px; text-decoration:none; }
+  .unit .mid .say { font-size:12px; color:var(--muted); }
   .unit a.pr { color:var(--muted); font-size:13px; text-decoration:none; }
   .unit button { font:inherit; font-size:13px; border:0; background:none; color:var(--muted); cursor:pointer; padding:2px 4px; }
   .unit button:hover { color:var(--bad); }
+  /* the one you just scanned, so a QR in your hand matches a row on screen */
+  .unit.here { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; background:var(--card); }
+  .unit.here .n, .unit.here .mid .say { color:var(--accent); }
+  .unit.here .mid .say { font-weight:600; }
   .countrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .countrow input { width:110px; font-size:17px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
   .log { list-style:none; padding:0; margin:10px 0 0; font-size:13px; color:var(--muted); }
@@ -87,14 +94,21 @@ function headline(i) {
   return `<div class="big"><b>${i.quantity ?? 0}</b> in stock · ${where}</div>`;
 }
 
-// The numbered ones. Each has its own QR, so a label can live on the object.
-function unitList(i) {
+// The numbered ones, each with the QR that is stuck on it. Holding one in
+// your hand, you can match its code to a row here. The one you arrived on is
+// outlined, so scanning a box tells you at a glance which of them it is.
+function unitList(i, hereN) {
+  const product = i.productId || i.id;
   return `<div class="card"><h2>${i.units.length} of them, each numbered</h2>
     <div class="units">${i.units.map(u => `
-      <div class="unit">
+      <div class="unit${u.n === hereN ? ' here' : ''}">
+        <img class="qr" src="/api/items/${product}-${u.n}/qr.svg" alt="QR for #${u.n}" loading="lazy">
         <span class="n">#${u.n}</span>
-        <a class="open" href="/i/${i.id}-${u.n}">open</a>
-        <a class="pr" href="/labels?ids=${i.id}-${u.n}">label</a>
+        <div class="mid">
+          ${u.n === hereN ? '<span class="say">this is the one you scanned</span>' : `<a href="/i/${product}-${u.n}">open #${u.n}</a>`}
+          ${u.n === hereN ? `<a href="/i/${product}-${u.n}">open #${u.n}</a>` : ''}
+        </div>
+        <a class="pr" href="/sticker?id=${product}-${u.n}">sticker</a>
         <button data-dropunit="${u.n}" title="retire #${u.n}">retire</button>
       </div>`).join('') || '<p class="muted" style="margin:0">None yet. Add the first one below.</p>'}
     </div>
@@ -110,7 +124,7 @@ function view(i) {
   const unitPart = i.unit ? ` <span class="badge">#${i.unit.n}</span>` : '';
   return `
     <h1>${esc(i.name)}${unitPart} ${i.kind === 'set' ? '<span class="muted">(set)</span>' : ''}</h1>
-    <div class="id">${i.unitId || i.id}${i.unit ? ` · <a href="/i/${i.productId}">one of ${i.units.length}</a>` : ''}</div>
+    <div class="id">${i.unitId || i.id}${i.unit ? ` · <a href="/i/${i.productId}?u=${i.unit.n}">one of ${i.units.length}</a>` : ''}</div>
     ${i.description ? `<p>${esc(i.description)}</p>` : ''}
     ${headline(i)}
     <div class="photos">
@@ -118,7 +132,7 @@ function view(i) {
       ${photo('loc', i.locationPhoto, 'where it lives')}
     </div>
     ${i.tags?.length ? `<div>${i.tags.map(t => `<span class="tag">${esc(t)}</span> `).join('')}</div>` : ''}
-    ${i.tracked && !i.unit ? unitList(i) : ''}
+    ${i.tracked ? unitList(i, i.unit ? i.unit.n : scannedUnit()) : ''}
     ${!i.tracked && !i.unit ? `<div class="card"><h2>Counting</h2>
       <div class="countrow">
         <label for="count">Counted just now</label>
@@ -141,7 +155,8 @@ function view(i) {
       <div><p class="muted" style="margin:0 0 8px">${i.unit ? 'Scanning this opens this one. Stick it on the object itself.'
         : i.tracked ? 'Scanning this opens the whole group. The label that goes on each one is above.'
         : 'Scanning this opens this page. Stick it on the box or the shelf.'}</p>
-      <a class="btn" href="/labels?ids=${here(i)}">Print label</a></div>
+      <a class="btn" href="/labels?ids=${here(i)}">Print sheet</a>
+      <a class="btn" href="/sticker?id=${here(i)}">Sticker printer</a></div>
     </div></div>
     <div class="btnrow">
       <button class="btn primary" id="add">+ add to my list</button>
@@ -153,6 +168,10 @@ function view(i) {
 
 // The thing this page is about: one unit, or the product.
 const here = i => i.unitId || i.id;
+
+// Which unit brought you here: the one in the URL of a unit page, or the ?u=
+// carried over when you tapped through from one.
+const scannedUnit = () => Number(new URLSearchParams(location.search).get('u')) || null;
 
 function fail(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; e.className = 'err'; }
 function flash(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; e.className = 'muted'; }
@@ -253,22 +272,26 @@ function wire() {
     const count = Number(prompt('How many more?', '3'));
     if (!count || count < 1) return;
     this.disabled = true;
-    try { const d = await call('POST', `/api/items/${item.id}/units`, { count }); await load(); flash(`added ${d.added.join(', ')}`); }
+    try { const d = await call('POST', `/api/items/${item.productId || item.id}/units`, { count }); await load(); flash(`added ${d.added.join(', ')}`); }
     catch (e) { this.disabled = false; fail('Not added: ' + e.message); }
   };
 
   const addUnit = document.getElementById('addunit');
   if (addUnit) addUnit.onclick = async function () {
     this.disabled = true;
-    try { const d = await call('POST', `/api/items/${item.id}/units`, { count: 1 }); await load(); flash(`added ${d.added.join(', ')} – print its label`); }
+    try { const d = await call('POST', `/api/items/${item.productId || item.id}/units`, { count: 1 }); await load(); flash(`added ${d.added.join(', ')} – print its label`); }
     catch (e) { this.disabled = false; fail('Not added: ' + e.message); }
   };
 
   document.querySelectorAll('[data-dropunit]').forEach(b => b.onclick = async () => {
-    const n = b.dataset.dropunit;
+    const n = Number(b.dataset.dropunit);
     if (!confirm(`Retire #${n}? The number is never reused.`)) return;
-    try { await call('DELETE', `/api/items/${item.id}/units/${n}`); await load(); }
-    catch (e) { fail('Not retired: ' + e.message); }
+    const product = item.productId || item.id;
+    try {
+      await call('DELETE', `/api/items/${product}/units/${n}`);
+      // retiring the unit whose page this is leaves nothing to show
+      if (item.unit && item.unit.n === n) location.href = '/i/' + product; else await load();
+    } catch (e) { fail('Not retired: ' + e.message); }
   });
 
   document.querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
