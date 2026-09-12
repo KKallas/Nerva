@@ -80,6 +80,7 @@ data/                             ── the whole state; back it up by copying 
 | The list      | `localStorage`, plain text                       | Survives closing the browser, works offline  |
 | Identity      | Email in a signed cookie, entered once           | No passwords, no identity provider           |
 | Photos        | Resized **in the browser** (canvas, max 1280 px), POSTed as a raw JPEG body | No image libraries and no upload parser on the server |
+| Highlighting  | Darken the photo, wipe the dark away with a finger, flatten into the JPEG | The highlight is part of the picture: nothing extra to store, and every viewer shows it |
 | QR codes      | `qrcode` npm package, rendered on demand         | Nothing to store                             |
 | Scanning      | `BarcodeDetector` in the browser, `jsQR` fallback | No native app                               |
 | Deployment    | `node server.js` behind Caddy, or Dockerfile     | One box, one command                         |
@@ -90,14 +91,38 @@ No database, no ORM, no build pipeline, no OAuth. If something needs a second se
 
 ```
 data/
-  config.json            # lab name, admin emails, default loan period
-  users.json             # { "<email>": { name, role, firstSeen, lastSeen } }
-  items/<id>.json        # one file per item or set
-  loans/<id>.json        # one file per loan (open or closed)
-  photos/<id>-item.jpg   # item photo
-  photos/<id>-loc.jpg    # default location photo
-  log.jsonl              # append-only audit log, one JSON event per line
+  config.json                # lab name, low stock threshold, loan period
+  runtime.json               # the address this instance is reachable on right now
+  users.json                 # { "<email>": { name, role, firstSeen, lastSeen } }
+  items/<id>.json            # one file per product
+  locations/<id>.json        # one file per location, shelves nested inside
+  loans/<id>.json            # one file per loan (open or closed)
+  photos/<id>-item.jpg       # the item
+  photos/<id>-loc.jpg        # where it lives
+  photos/place-<id>.jpg      # a location or a shelf ("place-cab003-4.jpg")
+  log.jsonl                  # append-only audit log, one JSON event per line
 ```
+
+### Location (`data/locations/<id>.json`)
+
+```json
+{
+  "id": "cab003",
+  "name": "Cabinet C",
+  "photo": true,
+  "shelves": [
+    { "n": 1, "name": "drawer 1", "photo": true },
+    { "n": 4, "name": "drawer 4" }
+  ],
+  "nextShelf": 5
+}
+```
+
+A shelf id is `cab003-4`, the same shape as a product's units. An item keeps
+`shelf: "cab003-4"` **and** the readable `location: "Cabinet C, drawer 4"`, so
+search and the catalogue never need to know that places are records. Renaming a
+place rewrites that text on everything filed there. Shelf numbers are never
+reused, so a label stuck on a drawer cannot come to mean another drawer.
 
 ### Two kinds of thing
 
@@ -182,7 +207,8 @@ One app page does nearly everything; the rest are small.
 |----------------------|-------|-------------------------------------------------------------|
 | `/` (Checkout)       | all   | **Search + list.** Search box on top with instant local results (location, photo, quantity, **+**). Below it the list: textarea, scan button (camera overlay, each scan appends a line), verb buttons `find out in count new`, results under each line after filing. Text lines that match several items show the matches as buttons; tapping one swaps the line for the exact id. |
 | `/items`             | all   | **The catalogue.** Everything, grouped by location (or tag, or flat), filter chips for sets / low stock / no photo / no location, and a summary of what still needs a location or a photo. This is where gaps in the data are visible, so it is also where they get fixed. Editing and creating land here in steps 2 and 5. |
-| `/locations`         | all   | **Later.** Locations become real records: a name, a photo of the shelf, and what belongs there. Until then a location is just text on an item and this tab is disabled. |
+| `/locations`         | all   | **Places.** Locations (a cabinet, a bench) each holding shelves (a drawer, a level). Both take a photo and a QR code. Rename a place and the text on every item filed there follows. |
+| `/l/<id>`            | all   | A location or a shelf. Its photo, its QR, its shelves, and everything filed there. **Shelf QR codes point here**, so scanning a drawer lists what belongs in it. |
 | `/i/<id>`            | all   | Item page: photos, location, quantity, who has it, QR, "add to list", history. One-tap fixes for everyone: retake location photo, set count, add tag. **QR codes point here**, so a phone camera app lands on it and one tap adds it to the list. |
 | `/i/<id>/edit`       | admin | Edit fields, contents (for sets), take / upload photos (`<input capture>`) |
 | `/loans`             | all   | My open loans (everyone), all open loans + overdue (admin)   |
@@ -210,6 +236,20 @@ DELETE /api/items/:id/units/:n          retire one (refused while it is out)
 DELETE /api/items/:id                   admin (refused while on loan or inside a set)
 POST   /api/items/:id/photo?type=item|loc   raw image/jpeg body
 DELETE /api/items/:id/photo?type=item|loc
+POST   /api/items/:id/count             { quantity } set the counted number
+GET    /api/items/:id/history           recent events for this item
+PUT    /api/items/:id/shelf             { shelf } file it on a place
+
+GET    /api/locations                   locations with their shelves
+POST   /api/locations                   { name }
+PUT    /api/locations/:id               { name }  (rewrites item text)
+DELETE /api/locations/:id               refused while things are filed there
+POST   /api/locations/:id/shelves       { name }
+PUT    /api/locations/:id/shelves/:n    { name }
+DELETE /api/locations/:id/shelves/:n    refused while things are on it
+GET    /api/places/:id                  a location or shelf, and what is on it
+POST   /api/places/:id/photo            raw image/jpeg body
+GET    /api/places/:id/qr.svg           QR of https://<host>/l/<id>
 GET    /api/items/:id/qr.svg            QR of https://<host>/i/<id> (also qr.png?w=512)
 GET    /api/loans?open=1&mine=1
 GET    /api/me
@@ -249,6 +289,7 @@ lib/parse.js           the list parser (also served to the browser as-is)
 lib/who.js             cookie / X-Who identity, requireAdmin()
 lib/net.js             which addresses this machine is reachable on
 lib/units.js           bulk vs numbered units, unit ids
+lib/places.js          locations, shelves, place ids
 verbs/find.js          one file per verb, same signature:
 verbs/out.js             module.exports = async (lines, who, store) => results
 verbs/in.js
@@ -257,6 +298,8 @@ verbs/new.js
 verbs/fix.js
 routes/items.js        item read + delete
 routes/units.js        numbering on/off, add and retire units
+routes/count.js        counting a bulk item, and its history
+routes/locations.js    locations, shelves, filing an item, place pages
 routes/photos.js       photo upload and removal
 routes/qr.js           qr.svg / qr.png and the label sheet
 routes/settings.js     config, instance status, addresses
@@ -270,6 +313,9 @@ public/items.html      the catalogue: grouping, filter chips, data gaps
 public/item.html       one item
 public/labels.html     print sheet
 public/settings.html   addresses, lab settings, status
+public/locations.html  locations and their shelves
+public/place.html      one location or shelf, and what is on it
+public/paint.js        darken a photo and finger-paint the highlight
 bin/tunnel.js          npm run phone: server + Cloudflare quick tunnel + QR
 public/parse.js        symlink/copy of lib/parse.js
 public/sw.js           service worker
@@ -299,8 +345,8 @@ Conventions that make LLM edits safe:
 
 1. ✅ **Lookup** – Express, JSON store with atomic writes, `/api/catalogue.json`, `/` with instant local search (location + photo + quantity), item page, `manifest.json` + service worker. No identity needed yet. Usable on day one for "which shelf".
 1b. ✅ **List + find** – the textarea, shared parser in `lib/parse.js`, `verbs/find.js`, `POST /api/file`.
-2. **Scan + QR + labels** – ✅ QR codes, `/labels` print sheet, photos with client-side resize, item delete. Still to do: the camera overlay that appends scans to the list, and editing an item's fields (`/i/<id>/edit`).
-3. **Identity + out/in/count** – `/hello` cookie, `users.json`, `POST /api/file` for `out`, `in`, `count`, `/loans`.
+2. **Scan + QR + labels** – ✅ QR codes and the `/labels` print sheet for items, units and places; photos with client-side resize and finger-painted highlighting; numbered units; counting with history; locations and shelves. Still to do: the camera overlay that appends scans to the list, and editing an item's name, description and tags.
+3. **Identity + out/in** – `/hello` cookie, `users.json`, `POST /api/file` for `out` and `in`, `/loans`. (`count` already works.)
 4. **Sets** – contents editor, `- part xN` lines on `in`, `missing`, `/incomplete`, `fix`.
 5. **new + admin** – `new` verb creating items from names and opening `/labels`, `/admin`, export zip, CSV import.
 6. **Ops** – Dockerfile, Caddyfile, `bin/nerva` CLI, overdue list.

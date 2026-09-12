@@ -38,5 +38,39 @@ module.exports = function photoRoutes(store) {
     res.json({ ok: true });
   });
 
+  // Locations and shelves have photos too: the same raw-JPEG upload, stored as
+  // place-<id>.jpg so a shelf photo is just another file in data/photos.
+  const placeFile = id => path.join(store.dirs.photos, `place-${id}.jpg`);
+
+  function place(req, res) {
+    const found = store.resolvePlace(req.params.id);
+    if (!found) { res.status(404).json({ error: 'no such place' }); return null; }
+    return found;
+  }
+  const markPhoto = (found, on) => {
+    const target = found.shelf || found.location;
+    if (on) target.photo = true; else delete target.photo;
+    store.saveLocation(found.location);
+  };
+
+  router.post('/api/places/:id/photo', express.raw({ type: 'image/jpeg', limit: '4mb' }), (req, res) => {
+    const found = place(req, res); if (!found) return;
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'send a JPEG body' });
+    const id = String(req.params.id).toLowerCase();
+    fs.writeFileSync(placeFile(id) + '.tmp', req.body);
+    fs.renameSync(placeFile(id) + '.tmp', placeFile(id));
+    markPhoto(found, true);
+    store.log({ type: 'place-photo', id, bytes: req.body.length, who: req.who || null });
+    res.json({ ok: true, id, bytes: req.body.length });
+  });
+
+  router.delete('/api/places/:id/photo', (req, res) => {
+    const found = place(req, res); if (!found) return;
+    const id = String(req.params.id).toLowerCase();
+    if (fs.existsSync(placeFile(id))) fs.unlinkSync(placeFile(id));
+    markPhoto(found, false);
+    res.json({ ok: true });
+  });
+
   return router;
 };

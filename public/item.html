@@ -23,12 +23,19 @@
   .card h2 { font-size:14px; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
   .qrbox { display:flex; gap:12px; align-items:center; }
   .qrbox img { width:96px; height:96px; background:#fff; padding:4px; border-radius:6px; }
-  .units { display:flex; flex-wrap:wrap; gap:8px; }
-  .unit { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:999px; padding:5px 6px 5px 12px; background:var(--bg); }
-  .unit a { font-weight:600; text-decoration:none; color:var(--fg); font-variant-numeric:tabular-nums; }
-  .unit a.out { color:var(--warn); }
+  .units { display:flex; flex-direction:column; gap:6px; }
+  .unit { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--bg); }
+  .unit .n { font-weight:700; font-variant-numeric:tabular-nums; min-width:40px; }
+  .unit a.open { flex:1; text-decoration:none; color:var(--accent); font-size:14px; }
+  .unit a.pr { color:var(--muted); font-size:13px; text-decoration:none; }
   .unit button { font:inherit; font-size:13px; border:0; background:none; color:var(--muted); cursor:pointer; padding:2px 4px; }
   .unit button:hover { color:var(--bad); }
+  .countrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .countrow input { width:110px; font-size:17px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
+  .log { list-style:none; padding:0; margin:10px 0 0; font-size:13px; color:var(--muted); }
+  .log li { padding:2px 0; }
+  .log b { color:var(--fg); font-variant-numeric:tabular-nums; font-weight:600; }
+  select { width:100%; font-size:16px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
   .badge { font-size:15px; color:var(--muted); font-weight:normal; }
   ul { padding-left:20px; margin:4px 0; }
   .muted { color:var(--muted); }
@@ -38,6 +45,7 @@
 <body>
 <div id="app"><p class="muted">loading…</p></div>
 <script src="/parse.js"></script>
+<script src="/paint.js"></script>
 <script src="/app.js"></script>
 <script>
 const esc = Nerva.esc;
@@ -81,14 +89,19 @@ function headline(i) {
 
 // The numbered ones. Each has its own QR, so a label can live on the object.
 function unitList(i) {
-  return `<div class="card"><h2>Each one is numbered</h2>
+  return `<div class="card"><h2>${i.units.length} of them, each numbered</h2>
     <div class="units">${i.units.map(u => `
-      <span class="unit"><a href="/i/${i.id}-${u.n}">#${u.n}</a>
-        <button data-dropunit="${u.n}" title="retire #${u.n}">✕</button></span>`).join('') || '<span class="muted">none yet</span>'}
+      <div class="unit">
+        <span class="n">#${u.n}</span>
+        <a class="open" href="/i/${i.id}-${u.n}">open</a>
+        <a class="pr" href="/labels?ids=${i.id}-${u.n}">label</a>
+        <button data-dropunit="${u.n}" title="retire #${u.n}">retire</button>
+      </div>`).join('') || '<p class="muted" style="margin:0">None yet. Add the first one below.</p>'}
     </div>
     <div class="btnrow">
       <button class="btn" id="addunit">+ add one</button>
-      <a class="btn" href="/labels?ids=${i.id}">Print a label for each</a>
+      <button class="btn" id="addunits">+ add several</button>
+      <a class="btn" href="/labels?ids=${i.id}">Print all labels</a>
       <button class="btn" id="untrack">Switch to a plain quantity</button>
     </div></div>`;
 }
@@ -107,8 +120,19 @@ function view(i) {
     ${i.tags?.length ? `<div>${i.tags.map(t => `<span class="tag">${esc(t)}</span> `).join('')}</div>` : ''}
     ${i.tracked && !i.unit ? unitList(i) : ''}
     ${!i.tracked && !i.unit ? `<div class="card"><h2>Counting</h2>
-      <p class="muted" style="margin:0">One QR for the whole lot, and a quantity. Things lent out one at a time want a number and a label each instead, up to 50 of them.</p>
+      <div class="countrow">
+        <label for="count">Counted just now</label>
+        <input type="number" id="count" min="0" inputmode="numeric" value="${i.quantity ?? 0}">
+        <button class="btn primary" id="savecount">Save count</button>
+      </div>
+      <ul class="log" id="history"></ul>
+      <p class="muted" style="margin:10px 0 0">One QR for the whole lot, and a quantity. Things lent out one at a time want a number and a label each instead, up to 50 of them.</p>
       <div class="btnrow"><button class="btn" id="track">Number each one</button></div></div>` : ''}
+    ${!i.unit ? `<div class="card"><h2>Where it lives</h2>
+      <select id="shelf"><option value="">not filed yet</option></select>
+      <p class="muted" style="margin:8px 0 0" id="placenote"></p>
+      <div class="btnrow"><a class="btn" id="placelink" hidden>Open the shelf</a><a class="btn" href="/locations">Manage locations</a></div>
+    </div>` : ''}
     ${i.kind === 'set' ? `<div class="card"><h2>Contents</h2><ul>${i.contents.map(c => `<li><a href="/i/${c.itemId}">${esc(c.name)}</a> × ${c.qty}</li>`).join('') || '<li class="muted">empty</li>'}</ul>
       ${i.missing?.length ? `<p class="warn">Missing: ${i.missing.map(m => `${esc(m.itemId)} × ${m.qty}`).join(', ')}</p>` : ''}</div>` : ''}
     ${i.openLoans?.length ? `<div class="card"><h2>Out with</h2><ul>${i.openLoans.map(l => `<li>${esc(l.who)} × ${l.qty} since ${l.borrowedAt.slice(0, 10)}</li>`).join('')}</ul></div>` : ''}
@@ -132,6 +156,39 @@ const here = i => i.unitId || i.id;
 
 function fail(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; e.className = 'err'; }
 function flash(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; e.className = 'muted'; }
+
+// What has happened to this item lately: counts, photos, filing.
+async function showHistory() {
+  const ul = document.getElementById('history');
+  if (!ul) return;
+  const events = await (await fetch(`/api/items/${item.id}/history?limit=6`)).json().catch(() => []);
+  const said = { count: e => `counted <b>${e.from} → ${e.to}</b>`, photo: () => 'photo added', 'photo-removed': () => 'photo removed',
+    filed: () => 'filed on a shelf', 'units-added': e => `added #${e.units.join(', #')}`, 'unit-removed': e => `retired #${e.unit}`,
+    tracked: e => (e.tracked ? 'started numbering each one' : 'went back to a quantity') };
+  ul.innerHTML = events.filter(e => said[e.type])
+    .map(e => `<li>${e.at.slice(0, 10)} · ${said[e.type](e)}${e.who ? ' · ' + Nerva.esc(e.who) : ''}</li>`).join('');
+}
+
+// The place picker lists every location and shelf, so filing is one tap.
+async function fillPlaces(select) {
+  const locations = await (await fetch('/api/locations')).json().catch(() => []);
+  const note = document.getElementById('placenote');
+  if (!locations.length) { note.innerHTML = 'No locations yet. <a href="/locations">Create the first cabinet</a>, then file this item on a shelf.'; select.hidden = true; return; }
+  for (const l of locations) {
+    const shelves = l.shelves.map(s => `<option value="${s.id}">${Nerva.esc(s.name)}</option>`).join('');
+    select.insertAdjacentHTML('beforeend',
+      `<optgroup label="${Nerva.esc(l.name)}"><option value="${l.id}">anywhere in ${Nerva.esc(l.name)}</option>${shelves}</optgroup>`);
+  }
+  select.value = item.shelf || '';
+  const link = document.getElementById('placelink');
+  const sync = () => { link.hidden = !select.value; if (select.value) link.href = '/l/' + select.value; };
+  sync();
+  note.textContent = item.shelf ? '' : item.location ? `Currently written as free text: “${item.location}”. Pick a shelf to make it a real place.` : '';
+  select.onchange = async () => {
+    try { await call('PUT', `/api/items/${item.id}/shelf`, { shelf: select.value || null }); await load(); }
+    catch (e) { fail('Not filed: ' + e.message); }
+  };
+}
 
 async function call(method, url, body) {
   const r = await fetch(url, body === undefined ? { method }
@@ -175,6 +232,31 @@ function wire() {
     catch (e) { this.disabled = false; fail('Not changed: ' + e.message); }
   };
 
+  const savecount = document.getElementById('savecount');
+  if (savecount) {
+    showHistory();
+    savecount.onclick = async function () {
+      this.disabled = true;
+      try {
+        const d = await call('POST', `/api/items/${item.id}/count`, { quantity: document.getElementById('count').value });
+        await load();
+        flash(d.delta === 0 ? 'counted, unchanged' : `counted: ${d.from} → ${d.to} (${d.delta > 0 ? '+' : ''}${d.delta})`);
+      } catch (e) { this.disabled = false; fail('Not counted: ' + e.message); }
+    };
+  }
+
+  const shelf = document.getElementById('shelf');
+  if (shelf) fillPlaces(shelf);
+
+  const addSeveral = document.getElementById('addunits');
+  if (addSeveral) addSeveral.onclick = async function () {
+    const count = Number(prompt('How many more?', '3'));
+    if (!count || count < 1) return;
+    this.disabled = true;
+    try { const d = await call('POST', `/api/items/${item.id}/units`, { count }); await load(); flash(`added ${d.added.join(', ')}`); }
+    catch (e) { this.disabled = false; fail('Not added: ' + e.message); }
+  };
+
   const addUnit = document.getElementById('addunit');
   if (addUnit) addUnit.onclick = async function () {
     this.disabled = true;
@@ -190,14 +272,11 @@ function wire() {
   });
 
   document.querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
-    const file = await Nerva.pickPhoto();
-    if (!file) return;
+    const blob = await Nerva.photoFromCamera();   // pick, shrink, highlight
+    if (!blob) return;
     b.disabled = true; b.textContent = 'uploading…';
-    try {
-      const blob = await Nerva.resizePhoto(file);
-      await Nerva.uploadPhoto(item.id, b.dataset.set, blob);
-      await load();
-    } catch (e) { b.disabled = false; fail('Photo not saved: ' + e.message); }
+    try { await Nerva.uploadPhoto(item.productId || item.id, b.dataset.set, blob); await load(); }
+    catch (e) { b.disabled = false; fail('Photo not saved: ' + e.message); }
   });
 
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {

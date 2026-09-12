@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Locations · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  h1 { font-size:20px; margin:4px 0 10px; }
+  .loc { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+  .head { display:flex; gap:12px; align-items:center; }
+  .head .thumb { width:64px; height:64px; }
+  .head .t { flex:1; min-width:0; }
+  .head .t a { font-weight:600; font-size:17px; text-decoration:none; color:inherit; }
+  .head .t div { color:var(--muted); font-size:13px; }
+  .shelves { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .shelf { display:flex; gap:10px; align-items:center; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+  .shelf img, .shelf .noimg { width:40px; height:40px; border-radius:6px; object-fit:cover; background:var(--line); flex:none; }
+  .shelf a { flex:1; min-width:0; text-decoration:none; color:inherit; font-weight:500; }
+  .shelf small { color:var(--muted); font-weight:normal; }
+  .shelf button { font:inherit; font-size:13px; border:0; background:none; color:var(--muted); cursor:pointer; padding:4px; }
+  .newrow { display:flex; gap:8px; margin-top:10px; }
+  .newrow input { flex:1; font-size:15px; padding:9px 11px; }
+  .err { color:var(--bad); font-size:14px; }
+</style>
+</head>
+<body>
+<script src="/parse.js"></script>
+<script src="/paint.js"></script>
+<script src="/app.js"></script>
+<h1>Locations</h1>
+<p class="muted" id="intro">A location is a cabinet or a bench. A shelf is a drawer or a level inside it. Both take a photo and a QR code: scan a shelf to see what belongs on it.</p>
+<div id="list"></div>
+<div class="newrow">
+  <input type="text" id="newloc" placeholder="New location, e.g. Cabinet D">
+  <button class="btn primary" id="addloc">Add</button>
+</div>
+<div class="btnrow"><a class="btn" id="alllabels" href="/labels?places=all">Print labels for every shelf</a></div>
+<p class="err" id="err" hidden></p>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = Nerva.esc;
+Nerva.nav('/locations');
+let locations = [];
+
+load();
+async function load() {
+  locations = await (await fetch('/api/locations')).json();
+  $('#list').innerHTML = locations.map(card).join('') || '<p class="muted">No locations yet. Add the first cabinet below.</p>';
+  $('#intro').hidden = locations.length > 0;
+  wire();
+}
+
+function card(l) {
+  return `<div class="loc" data-loc="${l.id}">
+    <div class="head">
+      ${l.photo ? `<img class="thumb" src="/photos/place-${l.id}.jpg?v=${Date.now()}" alt="">`
+                : `<button class="thumb" data-photo="${l.id}" title="add a photo" style="border:1px dashed var(--line);color:var(--muted);cursor:pointer">+</button>`}
+      <div class="t">
+        <a href="/l/${l.id}">${esc(l.name)}</a>
+        <div>${l.shelves.length} shelves · ${l.items} items</div>
+      </div>
+      <button class="btn" data-rename="${l.id}" style="font-size:13px;padding:7px 10px">rename</button>
+    </div>
+    <div class="shelves">
+      ${l.shelves.map(s => `<div class="shelf">
+        ${s.photo ? `<img src="/photos/place-${s.id}.jpg?v=${Date.now()}" alt="">` : '<div class="noimg"></div>'}
+        <a href="/l/${s.id}">${esc(s.name)} <small>· ${s.items} items</small></a>
+        <button data-dropshelf="${l.id}:${s.n}" title="remove">✕</button>
+      </div>`).join('')}
+    </div>
+    <div class="newrow">
+      <input type="text" data-newshelf="${l.id}" placeholder="New shelf, e.g. drawer 3">
+      <button class="btn" data-addshelf="${l.id}">Add shelf</button>
+    </div>
+  </div>`;
+}
+
+function fail(m) { $('#err').textContent = m; $('#err').hidden = false; }
+async function call(method, url, body) {
+  const r = await fetch(url, body === undefined ? { method }
+    : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'failed');
+  return d;
+}
+const guard = fn => async (...a) => { $('#err').hidden = true; try { await fn(...a); await load(); } catch (e) { fail(e.message); } };
+
+$('#addloc').onclick = guard(async () => {
+  const name = $('#newloc').value.trim();
+  if (!name) return;
+  await call('POST', '/api/locations', { name });
+  $('#newloc').value = '';
+});
+
+function wire() {
+  document.querySelectorAll('[data-addshelf]').forEach(b => b.onclick = guard(async () => {
+    const input = document.querySelector(`[data-newshelf="${b.dataset.addshelf}"]`);
+    const name = input.value.trim();
+    if (!name) return;
+    await call('POST', `/api/locations/${b.dataset.addshelf}/shelves`, { name });
+  }));
+  document.querySelectorAll('[data-newshelf]').forEach(i => i.onkeydown = e => {
+    if (e.key === 'Enter') document.querySelector(`[data-addshelf="${i.dataset.newshelf}"]`).click();
+  });
+  document.querySelectorAll('[data-dropshelf]').forEach(b => b.onclick = guard(async () => {
+    const [id, n] = b.dataset.dropshelf.split(':');
+    if (!confirm('Remove this shelf?')) return;
+    await call('DELETE', `/api/locations/${id}/shelves/${n}`);
+  }));
+  document.querySelectorAll('[data-rename]').forEach(b => b.onclick = guard(async () => {
+    const l = locations.find(x => x.id === b.dataset.rename);
+    const name = prompt('Location name', l.name);
+    if (!name || name === l.name) return;
+    await call('PUT', `/api/locations/${l.id}`, { name });
+  }));
+  document.querySelectorAll('[data-photo]').forEach(b => b.onclick = guard(async () => {
+    const blob = await Nerva.photoFromCamera();
+    if (!blob) return;
+    await Nerva.uploadPlacePhoto(b.dataset.photo, blob);
+  }));
+}
+</script>
+</body>
+</html>

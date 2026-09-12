@@ -39,8 +39,10 @@
 <script>
 Nerva.nav('/items');
 const esc = Nerva.esc;
-const ids = (new URLSearchParams(location.search).get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
-Nerva.loadCatalogue((all, how) => {
+const params = new URLSearchParams(location.search);
+const ids = (params.get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
+const places = (params.get('places') || '').split(',').map(s => s.trim()).filter(Boolean);
+if (places.length) renderPlaces(); else Nerva.loadCatalogue((all, how) => {
   if (how === 'cached') return;
   // A product that is numbered individually turns into one label per unit,
   // because each physical one carries its own QR. An explicit unit id
@@ -71,6 +73,23 @@ Nerva.loadCatalogue((all, how) => {
       </div>
     </div>`).join('') || '<p class="muted">Nothing to print.</p>';
 });
+
+// Shelf and location labels. "all" prints one for every shelf in the lab.
+async function renderPlaces() {
+  const locations = await (await fetch('/api/locations')).json();
+  const out = [];
+  const wanted = places.includes('all') ? null : new Set(places);
+  for (const l of locations) {
+    if (!wanted || wanted.has(l.id)) out.push({ id: l.id, name: l.name, location: 'location' });
+    for (const s of l.shelves) if (!wanted || wanted.has(s.id)) out.push({ id: s.id, name: `${l.name}, ${s.name}`, location: 'shelf' });
+  }
+  document.getElementById('what').textContent = `${out.length} place label${out.length === 1 ? '' : 's'}. Each QR opens that place and lists what belongs there.`;
+  document.getElementById('sheet').innerHTML = out.map(p => `
+    <div class="label">
+      <img src="/api/places/${p.id}/qr.svg" alt="QR for ${esc(p.name)}">
+      <div class="t"><div class="n">${esc(p.name)}</div><div class="i">${p.id}</div><div class="w">${p.location}</div></div>
+    </div>`).join('') || '<p class="muted">Nothing to print.</p>';
+}
 </script>
 </body>
 </html>

@@ -28,7 +28,7 @@ window.Nerva = (function () {
 
   // --- nav, same on every page ---
   function nav(current) {
-    const tabs = [['/', 'Checkout'], ['/items', 'Items'], ['/locations', 'Locations', 'soon'], ['/settings', '⚙︎']];
+    const tabs = [['/', 'Checkout'], ['/items', 'Items'], ['/locations', 'Locations'], ['/settings', '⚙︎']];
     document.body.insertAdjacentHTML('afterbegin', `<nav class="tabs">${tabs.map(([href, label, soon]) =>
       `<a href="${href}"${href === current ? ' aria-current="page"' : ''}${soon ? ' class="soon" title="coming later"' : ''}>${label}${
         href === '/' && listCount() ? ` <span class="tag">${listCount()}</span>` : ''}</a>`).join('')}<span class="grow"></span><span class="status" id="navstatus"></span></nav>`);
@@ -81,6 +81,16 @@ window.Nerva = (function () {
       input.click();
     });
   }
+  // The whole photo flow: pick, shrink, optionally highlight with a finger.
+  // Returns a JPEG blob ready to upload, or null if the user backed out.
+  async function photoFromCamera() {
+    const file = await pickPhoto();
+    if (!file) return null;
+    const small = await resizePhoto(file);
+    if (!window.NervaPaint) return small;
+    return NervaPaint.highlight(small);
+  }
+
   async function uploadPhoto(id, type, blob) {
     const r = await fetch(`/api/items/${id}/photo?type=${type}`, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob });
     const d = await r.json().catch(() => ({}));
@@ -92,6 +102,17 @@ window.Nerva = (function () {
     const r = await fetch(`/api/items/${id}/photo?type=${type}`, { method: 'DELETE' });
     if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || 'could not remove');
     refreshCatalogue();
+  }
+  // Locations and shelves: same upload, different owner.
+  async function uploadPlacePhoto(placeId, blob) {
+    const r = await fetch(`/api/places/${placeId}/photo`, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'upload failed');
+    return d;
+  }
+  async function removePlacePhoto(placeId) {
+    const r = await fetch(`/api/places/${placeId}/photo`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || 'could not remove');
   }
   async function deleteItem(id) {
     const r = await fetch(`/api/items/${id}`, { method: 'DELETE' });
@@ -108,5 +129,6 @@ window.Nerva = (function () {
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   return { esc, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
-    nav, status, itemRow, wireAdd, resizePhoto, pickPhoto, uploadPhoto, removePhoto, deleteItem };
+    nav, status, itemRow, wireAdd, resizePhoto, pickPhoto, photoFromCamera, uploadPhoto, removePhoto,
+    uploadPlacePhoto, removePlacePhoto, deleteItem };
 })();

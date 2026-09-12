@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  h1 { font-size:22px; margin:0 0 4px; }
+  .id { font-family:ui-monospace,Menlo,monospace; color:var(--muted); font-size:14px; }
+  .photo, .nophoto { width:100%; max-height:320px; object-fit:cover; border-radius:12px; margin:12px 0; display:block; background:var(--line); }
+  .nophoto { height:140px; display:flex; align-items:center; justify-content:center; color:var(--muted); border:1px dashed var(--line); font:inherit; cursor:pointer; width:100%; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin:12px 0; }
+  .card h2 { font-size:13px; color:var(--muted); margin:0 0 8px; text-transform:uppercase; letter-spacing:.05em; }
+  .qrbox { display:flex; gap:12px; align-items:center; }
+  .qrbox img { width:96px; height:96px; background:#fff; padding:4px; border-radius:6px; }
+  .err { color:var(--bad); font-size:14px; }
+</style>
+</head>
+<body>
+<script src="/parse.js"></script>
+<script src="/paint.js"></script>
+<script src="/app.js"></script>
+<div id="app"><p class="muted">loading…</p></div>
+<script>
+const esc = Nerva.esc;
+Nerva.nav('/locations');
+const id = location.pathname.split('/').pop().toLowerCase();
+let place = null;
+
+load();
+async function load() {
+  const app = document.getElementById('app');
+  const r = await fetch('/api/places/' + id);
+  if (!r.ok) { app.innerHTML = `<h1>Unknown place</h1><p class="muted">Nothing here with the id <span class="id">${esc(id)}</span>.</p>`; return; }
+  place = await r.json();
+  document.title = place.name + ' · Nerva';
+  app.innerHTML = `
+    <h1>${esc(place.name)}</h1>
+    <div class="id">${place.id} · ${place.kind}${place.kind === 'shelf' ? ` · <a href="/l/${place.locationId}">${esc(place.locationName)}</a>` : ''}</div>
+    ${place.photo ? `<img class="photo" src="/photos/place-${place.id}.jpg?v=${Date.now()}" alt="">`
+                  : '<button class="nophoto" id="addphoto">tap to photograph this place</button>'}
+    ${place.photo ? '<div class="btnrow"><button class="btn" id="addphoto">Replace photo</button><button class="btn" id="rmphoto">Remove photo</button></div>' : ''}
+    ${place.kind === 'location' ? shelves() : ''}
+    <div class="card"><h2>${place.items.length} item${place.items.length === 1 ? '' : 's'} here</h2>
+      ${place.items.length ? `<div class="rows">${place.items.map(row).join('')}</div>`
+        : '<p class="muted" style="margin:0">Nothing is filed here yet. Open an item and choose this place under “where it lives”.</p>'}
+    </div>
+    <div class="card"><h2>Label</h2><div class="qrbox">
+      <img src="/api/places/${place.id}/qr.svg" alt="QR code">
+      <div><p class="muted" style="margin:0 0 8px">Stick this on the ${place.kind}. Scanning it shows what belongs here.</p>
+      <a class="btn" href="/labels?places=${place.id}">Print label</a></div>
+    </div></div>
+    <p class="err" id="err" hidden></p>`;
+  wire();
+}
+
+const shelves = () => `<div class="card"><h2>Shelves</h2>${place.shelves.length
+  ? `<div class="rows">${place.shelves.map(s => `<a class="row" href="/l/${s.id}">
+      ${s.photo ? `<img class="thumb" src="/photos/place-${s.id}.jpg" alt="">` : '<div class="thumb"></div>'}
+      <div class="main"><div class="name">${esc(s.name)}</div><div class="where">${s.items} items</div></div></a>`).join('')}</div>`
+  : '<p class="muted" style="margin:0">No shelves. Add them on the <a href="/locations">Locations</a> page.</p>'}</div>`;
+
+const row = i => `<a class="row" href="/i/${i.id}">
+  ${i.photo ? `<img class="thumb" src="/photos/${i.id}-item.jpg" alt="">` : '<div class="thumb"></div>'}
+  <div class="main"><div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}</div>
+  <div class="where"><span class="qty">${i.quantity}</span>${i.tracked ? ' numbered' : ' in stock'}</div></div></a>`;
+
+function fail(m) { const e = document.getElementById('err'); e.textContent = m; e.hidden = false; }
+function wire() {
+  const add = document.getElementById('addphoto');
+  if (add) add.onclick = async () => {
+    const blob = await Nerva.photoFromCamera();
+    if (!blob) return;
+    try { await Nerva.uploadPlacePhoto(place.id, blob); await load(); } catch (e) { fail(e.message); }
+  };
+  const rm = document.getElementById('rmphoto');
+  if (rm) rm.onclick = async () => {
+    try { await Nerva.removePlacePhoto(place.id); await load(); } catch (e) { fail(e.message); }
+  };
+}
+</script>
+</body>
+</html>

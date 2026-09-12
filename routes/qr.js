@@ -21,6 +21,14 @@ module.exports = function qrRoutes(store) {
     res.type('image/svg+xml').send(svg);
   });
 
+  // A shelf's QR opens the shelf page, listing what belongs there.
+  router.get('/api/places/:id/qr.svg', async (req, res) => {
+    const id = String(req.params.id).toLowerCase();
+    if (!store.resolvePlace(id)) return res.status(404).send('no such place');
+    const svg = await QRCode.toString(`${baseUrl(req)}/l/${id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
+    res.type('image/svg+xml').set('Cache-Control', 'public, max-age=3600').send(svg);
+  });
+
   router.get('/api/items/:id/qr.svg', async (req, res) => {
     const id = String(req.params.id).toLowerCase();
     if (!store.resolve(id)) return res.status(404).send('no such item');
