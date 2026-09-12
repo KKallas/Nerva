@@ -6,35 +6,50 @@ const express = require('express');
 
 const KIND = { item: 'item', loc: 'loc' };
 
+// Where a photo lives on disk.
+//   <id>-item.jpg       the product, or the model of it
+//   <id>-<n>-item.jpg   this actual numbered one
+//   <id>-loc.jpg        where they are kept, shared by every unit
+const photoName = (item, unit, type) =>
+  type === 'loc' ? `${item.id}-loc.jpg` : unit ? `${item.id}-${unit.n}-item.jpg` : `${item.id}-item.jpg`;
+
 module.exports = function photoRoutes(store) {
   const router = express.Router();
-  const file = (id, type) => path.join(store.dirs.photos, `${id}-${KIND[type]}.jpg`);
 
+  // A unit id ("338va6-2") photographs that one object; a location photo asked
+  // for on a unit is stored on the product, because they all live together.
   function target(req, res) {
-    const item = store.items.get(String(req.params.id).toLowerCase());
-    if (!item) { res.status(404).json({ error: 'no such item' }); return null; }
-    if (!KIND[req.query.type]) { res.status(400).json({ error: 'type must be item or loc' }); return null; }
-    return item;
+    const found = store.resolve(req.params.id);
+    if (!found) { res.status(404).json({ error: 'no such item' }); return null; }
+    const type = req.query.type;
+    if (!KIND[type]) { res.status(400).json({ error: 'type must be item or loc' }); return null; }
+    const unit = type === 'loc' ? null : found.unit;
+    return { item: found.item, unit, type, file: path.join(store.dirs.photos, photoName(found.item, unit, type)) };
   }
 
+  const mark = (t, on) => {
+    const owner = t.unit || t.item;
+    const key = t.type === 'loc' ? 'locationPhoto' : 'photo';
+    if (on) owner[key] = true; else delete owner[key];
+    store.saveItem(t.item);
+  };
+
   router.post('/api/items/:id/photo', express.raw({ type: 'image/jpeg', limit: '4mb' }), (req, res) => {
-    const item = target(req, res); if (!item) return;
+    const t = target(req, res); if (!t) return;
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'send a JPEG body' });
-    fs.writeFileSync(file(item.id, req.query.type) + '.tmp', req.body);
-    fs.renameSync(file(item.id, req.query.type) + '.tmp', file(item.id, req.query.type));
-    if (req.query.type === 'item') item.photo = true; else item.locationPhoto = true;
-    store.saveItem(item);
-    store.log({ type: 'photo', id: item.id, which: req.query.type, bytes: req.body.length, who: req.who || null });
-    res.json({ ok: true, id: item.id, bytes: req.body.length });
+    fs.writeFileSync(t.file + '.tmp', req.body);
+    fs.renameSync(t.file + '.tmp', t.file);
+    mark(t, true);
+    const id = t.unit ? `${t.item.id}-${t.unit.n}` : t.item.id;
+    store.log({ type: 'photo', id, which: t.type, bytes: req.body.length, who: req.who || null });
+    res.json({ ok: true, id, bytes: req.body.length });
   });
 
   router.delete('/api/items/:id/photo', (req, res) => {
-    const item = target(req, res); if (!item) return;
-    const f = file(item.id, req.query.type);
-    if (fs.existsSync(f)) fs.unlinkSync(f);
-    if (req.query.type === 'item') delete item.photo; else delete item.locationPhoto;
-    store.saveItem(item);
-    store.log({ type: 'photo-removed', id: item.id, which: req.query.type, who: req.who || null });
+    const t = target(req, res); if (!t) return;
+    if (fs.existsSync(t.file)) fs.unlinkSync(t.file);
+    mark(t, false);
+    store.log({ type: 'photo-removed', id: t.unit ? `${t.item.id}-${t.unit.n}` : t.item.id, which: t.type, who: req.who || null });
     res.json({ ok: true });
   });
 

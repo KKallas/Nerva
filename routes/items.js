@@ -28,8 +28,13 @@ module.exports = function itemRoutes(store) {
     const contents = (item.contents || []).map(c => ({
       ...c, name: store.items.get(c.itemId)?.name || c.itemId,
     }));
-    // A unit page carries the product's details plus which one it is.
-    res.json({ ...item, contents, openLoans, unit, unitId: unit ? id : null, productId: item.id });
+    // A unit page carries the product's details plus which one it is. Its own
+    // photo is separate; the location photo is the product's, shared by all.
+    res.json({
+      ...item, contents, openLoans, unit, unitId: unit ? id : null, productId: item.id,
+      productPhoto: !!item.photo,
+      photo: unit ? !!unit.photo : !!item.photo,
+    });
   });
 
   // Delete. Refused while the item is out on loan or is part of a set:
@@ -43,8 +48,10 @@ module.exports = function itemRoutes(store) {
     if (open.length) return res.status(409).json({ error: `still out on ${open.length} open loan(s)` });
     const inSets = [...store.items.values()].filter(s => (s.contents || []).some(c => c.itemId === id));
     if (inSets.length) return res.status(409).json({ error: `part of ${inSets.map(s => s.name).join(', ')}` });
-    for (const type of ['item', 'loc']) {
-      const f = path.join(store.dirs.photos, `${id}-${type}.jpg`);
+    const files = ['item', 'loc'].map(t => `${id}-${t}.jpg`)
+      .concat((item.units || []).map(u => `${id}-${u.n}-item.jpg`));
+    for (const name of files) {
+      const f = path.join(store.dirs.photos, name);
       if (fs.existsSync(f)) fs.unlinkSync(f);
     }
     store.deleteItem(id);

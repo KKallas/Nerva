@@ -1,5 +1,7 @@
 // Switching a product between "just a quantity" and "each one numbered", and
 // adding or retiring the numbered ones.
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const { unitId, quantityOf } = require('../lib/units');
 
@@ -35,6 +37,10 @@ module.exports = function unitRoutes(store) {
       const out = (item.units || []).filter(u => loansOn(unitId(item.id, u.n)).length);
       if (out.length) return res.status(409).json({ error: `units ${out.map(u => '#' + u.n).join(', ')} are out on loan` });
       item.quantity = quantityOf(item);
+      for (const u of item.units || []) {                       // their own photos go too
+        const f = path.join(store.dirs.photos, `${item.id}-${u.n}-item.jpg`);
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      }
       delete item.tracked;
       delete item.units;
     }
@@ -67,6 +73,8 @@ module.exports = function unitRoutes(store) {
     if (!(item.units || []).some(u => u.n === n)) return res.status(404).json({ error: `no unit #${n}` });
     if (loansOn(unitId(item.id, n)).length) return res.status(409).json({ error: `#${n} is out on loan` });
     item.units = item.units.filter(u => u.n !== n);
+    const photo = path.join(store.dirs.photos, `${item.id}-${n}-item.jpg`);
+    if (fs.existsSync(photo)) fs.unlinkSync(photo);
     store.saveItem(item);
     store.log({ type: 'unit-removed', id: item.id, unit: n, who: req.who || null });
     res.json({ ok: true, item });

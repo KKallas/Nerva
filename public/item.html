@@ -16,6 +16,10 @@
   .photos img, .photos .none { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:var(--line); display:block; border:0; }
   .photos .none { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; cursor:pointer; font:inherit; text-align:center; padding:8px; }
   .photos .none:hover { border:1px dashed var(--accent); color:var(--accent); }
+  .photos .stand-in { position:relative; padding:0; overflow:hidden; }
+  .photos .stand-in img { width:100%; height:100%; object-fit:cover; opacity:.35; }
+  .photos .stand-in span { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:13px; line-height:1.35; text-align:center; padding:8px; background:rgba(0,0,0,.06); }
   figcaption { color:var(--muted); font-size:13px; margin-top:4px; display:flex; gap:8px; align-items:baseline; }
   figcaption button { font:inherit; font-size:13px; background:none; border:0; padding:0; color:var(--accent); cursor:pointer; }
   figcaption button.rm { color:var(--muted); }
@@ -25,18 +29,18 @@
   .qrbox img { width:96px; height:96px; background:#fff; padding:4px; border-radius:6px; }
   .units { display:flex; flex-direction:column; gap:6px; }
   .unit { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--bg); }
-  .unit img.qr { width:52px; height:52px; flex:none; background:#fff; padding:3px; border-radius:4px; }
-  .unit .n { font-weight:700; font-variant-numeric:tabular-nums; min-width:34px; }
-  .unit .mid { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-  .unit .mid a { color:var(--accent); font-size:14px; text-decoration:none; }
-  .unit .mid .say { font-size:12px; color:var(--muted); }
+  .unit a.grab { flex:1; min-width:0; display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; }
+  .unit img.qr { width:46px; height:46px; flex:none; background:#fff; padding:3px; border-radius:4px; }
+  .unit .pic { width:46px; height:46px; flex:none; border-radius:6px; object-fit:cover; background:var(--line); display:block; }
+  .unit .n { font-weight:700; font-variant-numeric:tabular-nums; }
+  .unit .say { font-size:12px; color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .unit a.pr { color:var(--muted); font-size:13px; text-decoration:none; }
   .unit button { font:inherit; font-size:13px; border:0; background:none; color:var(--muted); cursor:pointer; padding:2px 4px; }
   .unit button:hover { color:var(--bad); }
   /* the one you just scanned, so a QR in your hand matches a row on screen */
   .unit.here { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; background:var(--card); }
-  .unit.here .n, .unit.here .mid .say { color:var(--accent); }
-  .unit.here .mid .say { font-weight:600; }
+  .unit.here .n, .unit.here .say { color:var(--accent); }
+  .unit.here .say { font-weight:600; }
   .countrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .countrow input { width:110px; font-size:17px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
   .log { list-style:none; padding:0; margin:10px 0 0; font-size:13px; color:var(--muted); }
@@ -74,16 +78,44 @@ async function load() {
   wire();
 }
 
-function photo(kind, has, caption) {
-  const src = `/photos/${id}-${kind === 'item' ? 'item' : 'loc'}.jpg`;
+// One photo slot. `target` is what the photo belongs to: a numbered one
+// photographs itself, while the location photo always belongs to the product,
+// because every one of them is kept in the same place.
+function photo(o) {
+  const body = o.has ? `<img src="${o.src}?v=${Date.now()}" alt="${o.caption}">`
+    : o.fallback ? `<button class="none stand-in" data-set="${o.kind}" data-target="${o.target}">
+         <img src="${o.fallback}" alt=""><span>${o.fallbackNote}<br>tap for a photo of this one</span></button>`
+    : `<button class="none" data-set="${o.kind}" data-target="${o.target}">tap to add a photo</button>`;
   return `<figure>
-    ${has ? `<img src="${src}?v=${Date.now()}" alt="${caption}">` : `<button class="none" data-set="${kind}">tap to add a photo</button>`}
-    <figcaption>${caption}
+    ${body}
+    <figcaption>${o.caption}
       <span style="flex:1"></span>
-      <button data-set="${kind}">${has ? 'replace' : 'add'}</button>
-      ${has ? `<button class="rm" data-rm="${kind}">remove</button>` : ''}
+      <button data-set="${o.kind}" data-target="${o.target}">${o.has ? 'replace' : 'add'}</button>
+      ${o.has ? `<button class="rm" data-rm="${o.kind}" data-target="${o.target}">remove</button>` : ''}
     </figcaption>
+    ${o.note ? `<figcaption class="muted" style="font-size:12px">${o.note}</figcaption>` : ''}
   </figure>`;
+}
+
+// The two slots, which differ depending on whether this is one of many.
+function photos(i) {
+  const pid = i.productId || i.id;
+  return `<div class="photos">
+    ${photo({
+      kind: 'item', target: here(i), has: i.photo,
+      src: `/photos/${here(i)}-item.jpg`,
+      caption: i.unit ? `this one, #${i.unit.n}` : i.tracked ? 'the product' : 'the item',
+      fallback: i.unit && !i.photo && i.productPhoto ? `/photos/${pid}-item.jpg` : null,
+      fallbackNote: 'photo of the product',
+      note: i.unit ? '' : i.tracked ? 'each numbered one can have its own' : '',
+    })}
+    ${photo({
+      kind: 'loc', target: pid, has: i.locationPhoto,
+      src: `/photos/${pid}-loc.jpg`,
+      caption: 'where it lives',
+      note: (i.tracked || i.unit) ? 'shared by all of them' : '',
+    })}
+  </div>`;
 }
 
 // How many there are, or which one this is.
@@ -102,12 +134,12 @@ function unitList(i, hereN) {
   return `<div class="card"><h2>${i.units.length} of them, each numbered</h2>
     <div class="units">${i.units.map(u => `
       <div class="unit${u.n === hereN ? ' here' : ''}">
-        <img class="qr" src="/api/items/${product}-${u.n}/qr.svg" alt="QR for #${u.n}" loading="lazy">
-        <span class="n">#${u.n}</span>
-        <div class="mid">
-          ${u.n === hereN ? '<span class="say">this is the one you scanned</span>' : `<a href="/i/${product}-${u.n}">open #${u.n}</a>`}
-          ${u.n === hereN ? `<a href="/i/${product}-${u.n}">open #${u.n}</a>` : ''}
-        </div>
+        <a class="grab" href="/i/${product}-${u.n}">
+          ${u.photo ? `<img class="pic" src="/photos/${product}-${u.n}-item.jpg" alt="" loading="lazy">` : '<span class="pic none"></span>'}
+          <img class="qr" src="/api/items/${product}-${u.n}/qr.svg" alt="QR for #${u.n}" loading="lazy">
+          <span class="n">#${u.n}</span>
+          ${u.n === hereN ? '<span class="say">scanned</span>' : ''}
+        </a>
         <a class="pr" href="/sticker?id=${product}-${u.n}">sticker</a>
         <button data-dropunit="${u.n}" title="retire #${u.n}">retire</button>
       </div>`).join('') || '<p class="muted" style="margin:0">None yet. Add the first one below.</p>'}
@@ -127,10 +159,7 @@ function view(i) {
     <div class="id">${i.unitId || i.id}${i.unit ? ` · <a href="/i/${i.productId}?u=${i.unit.n}">one of ${i.units.length}</a>` : ''}</div>
     ${i.description ? `<p>${esc(i.description)}</p>` : ''}
     ${headline(i)}
-    <div class="photos">
-      ${photo('item', i.photo, 'the item')}
-      ${photo('loc', i.locationPhoto, 'where it lives')}
-    </div>
+    ${photos(i)}
     ${i.tags?.length ? `<div>${i.tags.map(t => `<span class="tag">${esc(t)}</span> `).join('')}</div>` : ''}
     ${i.tracked ? unitList(i, i.unit ? i.unit.n : scannedUnit()) : ''}
     ${!i.tracked && !i.unit ? `<div class="card"><h2>Counting</h2>
@@ -192,14 +221,17 @@ async function showHistory() {
 async function fillPlaces(select) {
   const locations = await (await fetch('/api/locations')).json().catch(() => []);
   const note = document.getElementById('placenote');
-  if (!locations.length) { note.innerHTML = 'No locations yet. <a href="/locations">Create the first cabinet</a>, then file this item on a shelf.'; select.hidden = true; return; }
+  const link = document.getElementById('placelink');
+  if (!locations.length) {
+    note.innerHTML = 'No locations yet. <a href="/locations">Create the first cabinet</a>, then file this item on a shelf.';
+    select.hidden = true; link.hidden = true; return;
+  }
   for (const l of locations) {
     const shelves = l.shelves.map(s => `<option value="${s.id}">${Nerva.esc(s.name)}</option>`).join('');
     select.insertAdjacentHTML('beforeend',
       `<optgroup label="${Nerva.esc(l.name)}"><option value="${l.id}">anywhere in ${Nerva.esc(l.name)}</option>${shelves}</optgroup>`);
   }
   select.value = item.shelf || '';
-  const link = document.getElementById('placelink');
   const sync = () => { link.hidden = !select.value; if (select.value) link.href = '/l/' + select.value; };
   sync();
   note.textContent = item.shelf ? '' : item.location ? `Currently written as free text: “${item.location}”. Pick a shelf to make it a real place.` : '';
@@ -297,14 +329,14 @@ function wire() {
   document.querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
     const blob = await Nerva.photoFromCamera();   // pick, shrink, highlight
     if (!blob) return;
-    b.disabled = true; b.textContent = 'uploading…';
-    try { await Nerva.uploadPhoto(item.productId || item.id, b.dataset.set, blob); await load(); }
+    b.disabled = true;
+    try { await Nerva.uploadPhoto(b.dataset.target, b.dataset.set, blob); await load(); }
     catch (e) { b.disabled = false; fail('Photo not saved: ' + e.message); }
   });
 
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
     b.disabled = true;
-    try { await Nerva.removePhoto(item.id, b.dataset.rm); await load(); }
+    try { await Nerva.removePhoto(b.dataset.target, b.dataset.rm); await load(); }
     catch (e) { b.disabled = false; fail('Photo not removed: ' + e.message); }
   });
 }

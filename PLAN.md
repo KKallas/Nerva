@@ -98,8 +98,9 @@ data/
   items/<id>.json            # one file per product
   locations/<id>.json        # one file per location, shelves nested inside
   loans/<id>.json            # one file per loan (open or closed)
-  photos/<id>-item.jpg       # the item
-  photos/<id>-loc.jpg        # where it lives
+  photos/<id>-item.jpg       # the item, or the model of it
+  photos/<id>-<n>-item.jpg   # this actual numbered one
+  photos/<id>-loc.jpg        # where they live, shared by every unit
   photos/place-<id>.jpg      # a location or a shelf ("place-cab003-4.jpg")
   log.jsonl                  # append-only audit log, one JSON event per line
 ```
@@ -135,8 +136,10 @@ A product is either **bulk** or **tracked**, and that single flag decides how QR
 | QR codes | one, on the box | one per physical object: `<id>-1`, `<id>-2`, … |
 | Quantity | a number you count and correct | however many units exist, derived |
 | Borrowing | "three of these" | "this one, number 2" |
+| Photo of the thing | one | one per numbered object, falling back to the product's |
+| Photo of where it lives | one | one, shared: they all live on the same shelf |
 
-Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. The product page lists every unit with its own QR beside it, and the one you arrived from is outlined, so a code in your hand matches a row on screen. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
+Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. The product page lists every unit with its QR and its own photo beside it, and the one you arrived from is outlined, so a code in your hand matches a row on screen. A unit with no photo of its own shows the product's, dimmed, as an invitation to photograph the real one. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
 
 ### Item (`data/items/<id>.json`)
 
@@ -236,7 +239,8 @@ PUT    /api/items/:id/tracked           { tracked } switch between quantity and 
 POST   /api/items/:id/units             { count } add numbered units
 DELETE /api/items/:id/units/:n          retire one (refused while it is out)
 DELETE /api/items/:id                   admin (refused while on loan or inside a set)
-POST   /api/items/:id/photo?type=item|loc   raw image/jpeg body
+POST   /api/items/:id/photo?type=item|loc   raw image/jpeg body; type=item on a unit
+                                        photographs that one, type=loc always the product
 DELETE /api/items/:id/photo?type=item|loc
 POST   /api/items/:id/count             { quantity } set the counted number
 GET    /api/items/:id/history           recent events for this item

@@ -69,3 +69,46 @@ test('numbering is refused for a bulk quantity and for an empty one', async () =
   assert.equal(store.items.get('scope1').units, undefined);
   server.close();
 });
+
+test('a numbered one photographs itself, but shares the location photo', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const express = require('express');
+  const store = makeStore([{ id: 'scope1', name: 'Scope', tracked: true, units: [{ n: 1 }, { n: 2 }] }]);
+  const app = express();
+  app.use(require('../routes/photos')(store));
+  app.use(require('../routes/items')(store));
+  app.use(require('../routes/units')(store));
+  const server = app.listen(0);
+  const base = `http://localhost:${server.address().port}`;
+  const jpeg = Buffer.from('ffd8ffe000104a464946', 'hex');
+  const put = (id, type) => fetch(`${base}/api/items/${id}/photo?type=${type}`,
+    { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: jpeg });
+  const has = f => fs.existsSync(path.join(store.dirs.photos, f));
+
+  await put('scope1-2', 'item');
+  assert.ok(has('scope1-2-item.jpg'));            // the one you photographed
+  assert.ok(!has('scope1-item.jpg'));             // not the product
+  assert.equal(store.items.get('scope1').units.find(u => u.n === 2).photo, true);
+  assert.equal(store.items.get('scope1').photo, undefined);
+
+  // a location photo asked for on a unit belongs to the product: they share a shelf
+  await put('scope1-2', 'loc');
+  assert.ok(has('scope1-loc.jpg'));
+  assert.ok(!has('scope1-2-loc.jpg'));
+  assert.equal(store.items.get('scope1').locationPhoto, true);
+
+  const unit = await (await fetch(`${base}/api/items/scope1-2`)).json();
+  assert.equal(unit.photo, true);                  // this one has its own
+  assert.equal(unit.productPhoto, false);          // the product still has none
+  assert.equal(unit.locationPhoto, true);          // shared
+  const other = await (await fetch(`${base}/api/items/scope1-1`)).json();
+  assert.equal(other.photo, false);
+  assert.equal(other.locationPhoto, true);
+
+  // retiring the one takes its photo with it, and leaves the shared one alone
+  await fetch(`${base}/api/items/scope1/units/2`, { method: 'DELETE' });
+  assert.ok(!has('scope1-2-item.jpg'));
+  assert.ok(has('scope1-loc.jpg'));
+  server.close();
+});
