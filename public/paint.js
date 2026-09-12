@@ -4,12 +4,27 @@
 // you darken the picture and wipe the dark away over the thing you mean. The
 // result is flattened into the JPEG that gets uploaded, so the highlight is
 // part of the photo and needs no extra storage or viewer.
+//
+// How the soft edge is made, and why it is made this way:
+//
+// The obvious approach, blurring an erased shape with ctx.filter, is not
+// reliable on phones: Safari ignores canvas filters in some compositing modes,
+// so the edge silently came out hard. Instead there is a `shade` layer, an
+// opaque grey picture of how bright each part of the photo should end up.
+// Round soft-edged brush marks are stamped onto it with the `lighten` blend,
+// which keeps the brightest of what is already there and the new mark. Because
+// that is a maximum rather than a sum, overlapping marks along one stroke
+// cannot stack up into a hard rim, which is exactly what a blur was for.
+// The photo is then multiplied by the shade. Both blends are old and everywhere.
 window.NervaPaint = (function () {
-  const DIM = 0.62;          // how dark the rest of the photo goes
-  const BRUSHES = [0.06, 0.12, 0.22];   // brush width as a fraction of the photo's short side
-  const FEATHER = 0.45;      // blur radius as a fraction of the brush width: a wide, soft edge
-  const PASSES = 3;          // blurring alone never fully clears the middle of a stroke;
-                             // wiping the blurred shape a few times does, and still fades out
+  const DIM = 0.62;                     // how dark the rest of the photo goes
+  const BRUSHES = [0.16, 0.30, 0.48];   // brush diameter as a fraction of the short side
+  const CORE = 0.42;                    // solid middle of a brush mark; the rest fades out,
+                                        // and that wide fade is what reads as a soft edge
+  const SMOOTH = 16;                     // shrink the shade by this much and stretch it back,
+                                        // which rounds off where brush marks meet
+  const SPACING = 0.12;                 // how far the brush moves between marks, in radii
+  const GREY = Math.round((1 - DIM) * 255);
 
   function el(tag, css, html) {
     const e = document.createElement(tag);
@@ -18,9 +33,38 @@ window.NervaPaint = (function () {
     return e;
   }
 
+  async function bitmap(blob) {
+    try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); }
+    catch { return await createImageBitmap(blob); }      // older phones lack the options
+  }
+
+  // A round mark: white in the middle, fading to black, fully opaque so that
+  // `lighten` takes the brighter of it and the shade and leaves the rest alone.
+  function makeBrush(radius) {
+    const size = Math.max(2, Math.ceil(radius * 2));
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, '#fff');
+    g.addColorStop(CORE, '#fff');
+    // a smooth shoulder rather than a straight ramp, so nothing reads as an edge
+    for (let i = 1; i <= 8; i++) {
+      const t = i / 8;
+      const v = Math.round(255 * (1 - t * t * (3 - 2 * t)));
+      g.addColorStop(CORE + (1 - CORE) * t, `rgb(${v},${v},${v})`);
+    }
+    x.fillStyle = '#000';
+    x.fillRect(0, 0, size, size);
+    x.globalCompositeOperation = 'lighten';
+    x.fillStyle = g;
+    x.fillRect(0, 0, size, size);
+    return c;
+  }
+
   // Returns a JPEG Blob (highlighted or untouched), or null if cancelled.
   async function highlight(blob) {
-    const bmp = await createImageBitmap(blob);
+    const bmp = await bitmap(blob);
     const W = bmp.width, H = bmp.height;
 
     const wrap = el('div', `position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;
@@ -45,120 +89,116 @@ window.NervaPaint = (function () {
     wrap.append(stage, bar);
     document.body.appendChild(wrap);
 
-    // Three layers. `reveal` holds what the finger has uncovered, as solid
-    // white strokes. `mask` is the dark sheet with `reveal` punched out of it,
-    // blurred on the way through so the highlight fades off instead of ending
-    // at a hard rim. The visible canvas is the photo with `mask` laid on top.
-    const reveal = document.createElement('canvas');
-    reveal.width = W; reveal.height = H;
-    const rctx = reveal.getContext('2d');
-    const mask = document.createElement('canvas');
-    mask.width = W; mask.height = H;
-    const mctx = mask.getContext('2d');
+    const shade = document.createElement('canvas');
+    shade.width = W; shade.height = H;
+    const sctx = shade.getContext('2d');
+
+    // Shrinking the shade and stretching it back is a blur the browser does in
+    // hardware, and unlike ctx.filter it behaves the same on every phone.
+    const small = document.createElement('canvas');
+    small.width = Math.max(1, Math.round(W / SMOOTH));
+    small.height = Math.max(1, Math.round(H / SMOOTH));
+    const smctx = small.getContext('2d');
+    const soft = document.createElement('canvas');
+    soft.width = W; soft.height = H;
+    const soctx = soft.getContext('2d');
+    function smoothed() {
+      smctx.imageSmoothingEnabled = true; smctx.imageSmoothingQuality = 'high';
+      smctx.drawImage(shade, 0, 0, small.width, small.height);
+      soctx.imageSmoothingEnabled = true; soctx.imageSmoothingQuality = 'high';
+      soctx.drawImage(small, 0, 0, W, H);
+      return soft;
+    }
     const ctx = canvas.getContext('2d');
     const short = Math.min(W, H);
-    const softEdges = typeof mctx.filter === 'string';   // canvas filters: everything current
     let brush = 1, painted = false;
     const undos = [];
+    const brushes = BRUSHES.map(f => makeBrush(short * f / 2));
 
-    const width = () => short * BRUSHES[brush];
-
+    const clearShade = () => { sctx.globalCompositeOperation = 'source-over'; sctx.fillStyle = `rgb(${GREY},${GREY},${GREY})`; sctx.fillRect(0, 0, W, H); };
     function render() {
-      // rebuild the dark sheet, then wipe the revealed shape out of it, blurred
-      mctx.filter = 'none';
-      mctx.globalCompositeOperation = 'source-over';
-      mctx.clearRect(0, 0, W, H);
-      mctx.fillStyle = `rgba(0,0,0,${DIM})`;
-      mctx.fillRect(0, 0, W, H);
-      mctx.globalCompositeOperation = 'destination-out';
-      if (softEdges) {
-        mctx.filter = `blur(${Math.round(width() * FEATHER)}px)`;
-        for (let i = 0; i < PASSES; i++) mctx.drawImage(reveal, 0, 0);
-      } else {
-        mctx.drawImage(reveal, 0, 0);
-      }
-      mctx.filter = 'none';
-      mctx.globalCompositeOperation = 'source-over';
-
+      ctx.globalCompositeOperation = 'source-over';
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(bmp, 0, 0);
-      ctx.drawImage(mask, 0, 0);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(smoothed(), 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
     }
+    clearShade(); render();
 
-    // A moving finger fires far more events than the screen can show. Coalesce
-    // them, so the blur is recomputed once a frame rather than once a move.
+    // A moving finger fires more events than the screen can show; marks are
+    // stamped as they arrive, but the picture is rebuilt once a frame.
     let queued = false;
-    function scheduleRender() {
+    const scheduleRender = () => {
       if (queued) return;
       queued = true;
       requestAnimationFrame(() => { queued = false; render(); });
-    }
-    render();
+    };
 
     const pos = e => {
       const r = canvas.getBoundingClientRect();
       return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
     };
-    const pushUndo = () => { undos.push(rctx.getImageData(0, 0, W, H)); if (undos.length > 12) undos.shift(); };
+    const pushUndo = () => { undos.push(sctx.getImageData(0, 0, W, H)); if (undos.length > 8) undos.shift(); };
 
-    // A stroke is redrawn as one path from its own starting snapshot, so the
-    // overlapping dabs of a slow finger cannot stack up into a hard edge.
-    let drawing = false, points = [], atStart = null;
-    function paintStroke() {
-      rctx.putImageData(atStart, 0, 0);
-      rctx.globalCompositeOperation = 'source-over';
-      rctx.strokeStyle = '#fff';
-      rctx.fillStyle = '#fff';
-      rctx.lineWidth = width();
-      rctx.lineCap = rctx.lineJoin = 'round';
-      if (points.length === 1) {
-        rctx.beginPath(); rctx.arc(points[0].x, points[0].y, width() / 2, 0, Math.PI * 2); rctx.fill();
-      } else {
-        rctx.beginPath();
-        rctx.moveTo(points[0].x, points[0].y);
-        for (const p of points.slice(1)) rctx.lineTo(p.x, p.y);
-        rctx.stroke();
-      }
-      scheduleRender();
+    function stamp(p) {
+      const b = brushes[brush];
+      sctx.globalCompositeOperation = 'lighten';
+      sctx.drawImage(b, p.x - b.width / 2, p.y - b.height / 2);
+      sctx.globalCompositeOperation = 'source-over';
     }
+    // Marks along the way, so a fast swipe leaves a line and not a dotted trail.
+    function stampTo(a, b) {
+      const r = brushes[brush].width / 2;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (r * SPACING)));
+      for (let i = 1; i <= steps; i++) stamp({ x: a.x + dx * i / steps, y: a.y + dy * i / steps });
+    }
+
+    let drawing = false, last = null;
     canvas.addEventListener('pointerdown', e => {
       e.preventDefault();
       try { canvas.setPointerCapture(e.pointerId); } catch {}   // not every pointer can be captured
       pushUndo();
-      atStart = rctx.getImageData(0, 0, W, H);
-      painted = true; drawing = true; points = [pos(e)];
-      paintStroke();
+      painted = true; drawing = true;
+      last = pos(e);
+      stamp(last);
+      scheduleRender();
     });
     canvas.addEventListener('pointermove', e => {
       if (!drawing) return;
       e.preventDefault();
-      points.push(pos(e));
-      paintStroke();
+      const p = pos(e);
+      stampTo(last, p);
+      last = p;
+      scheduleRender();
     });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) canvas.addEventListener(ev, () => { drawing = false; });
 
     sizeBtn.onclick = () => { brush = (brush + 1) % BRUSHES.length; sizeBtn.textContent = 'brush ' + ['·', '●', '⬤'][brush]; };
-    undoBtn.onclick = () => { const prev = undos.pop(); if (prev) { rctx.putImageData(prev, 0, 0); render(); painted = undos.length > 0; } };
-    // a new brush size changes the blur, so the picture has to be rebuilt
-    sizeBtn.addEventListener('click', render);
-    resetBtn.onclick = () => { pushUndo(); rctx.clearRect(0, 0, W, H); render(); painted = false; };
+    undoBtn.onclick = () => { const prev = undos.pop(); if (prev) { sctx.putImageData(prev, 0, 0); render(); painted = undos.length > 0; } };
+    resetBtn.onclick = () => { pushUndo(); clearShade(); render(); painted = false; };
 
     return new Promise(resolve => {
       const onKey = e => { if (e.key === 'Escape') done(null); };
       const done = out => { document.removeEventListener('keydown', onKey); wrap.remove(); bmp.close?.(); resolve(out); };
       document.addEventListener('keydown', onKey);
-      skipBtn.onclick = () => blobOf(bmp, W, H, null).then(done);
-      useBtn.onclick = () => { render(); blobOf(bmp, W, H, painted ? mask : null).then(done); };
+      skipBtn.onclick = () => flatten(bmp, W, H, null).then(done);
+      useBtn.onclick = () => flatten(bmp, W, H, painted ? smoothed() : null).then(done);
     });
   }
 
-  // Flatten photo + remaining dark layer into one JPEG.
-  function blobOf(bmp, W, H, mask) {
+  // Photo times shade, as one JPEG.
+  function flatten(bmp, W, H, shade) {
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const x = c.getContext('2d');
     x.drawImage(bmp, 0, 0);
-    if (mask) x.drawImage(mask, 0, 0);
+    if (shade) {
+      x.globalCompositeOperation = 'multiply';
+      x.drawImage(shade, 0, 0);
+      x.globalCompositeOperation = 'source-over';
+    }
     return new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
   }
 
