@@ -141,9 +141,9 @@ $('#copy').onclick = async function () {
 $('#save').onclick = async function () {
   this.disabled = true;
   const body = { labName: $('#labName').value, lowStock: $('#lowStock').value, loanDays: $('#loanDays').value };
-  const r = await fetch('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  try { await Nerva.api('PUT', '/api/settings', body); }
+  catch (e) { this.disabled = false; $('#addrnote').textContent = e.message; return; }
   this.disabled = false;
-  if (!r.ok) { $('#addrnote').textContent = 'Could not save.'; return; }
   await Nerva.refreshCatalogue();
   await load();
   $('#saved').hidden = false;

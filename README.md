@@ -24,6 +24,7 @@ cp .env.example .env      # defaults are fine for local testing
 npm install
 npm run seed              # 33 sample items and 3 soldering sets, only if data/ is empty
 npm start                 # http://localhost:3000
+npm run dev               # the same, restarting itself whenever a file changes
 npm test                  # unit tests for parser, search, store, verbs
 ```
 

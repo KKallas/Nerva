@@ -64,6 +64,24 @@ window.Nerva = (function () {
     });
   }
 
+  // One way to call the API. A server running older code answers an unknown
+  // route with an HTML error page, which used to surface as a JSON parse error
+  // and told nobody anything; say what it actually means instead.
+  async function api(method, url, body) {
+    const r = await fetch(url, body === undefined ? { method }
+      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const text = await r.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; }
+    catch {
+      throw new Error(r.status === 404
+        ? 'This server does not know that request. It is probably running an older version of Nerva: restart it.'
+        : `The server replied with something that is not an answer (${r.status}).`);
+    }
+    if (!r.ok) throw new Error(data.error || `failed (${r.status})`);
+    return data;
+  }
+
   // --- photos: resize in the browser, the server only stores bytes ---
   async function resizePhoto(file, max, quality) {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -131,7 +149,7 @@ window.Nerva = (function () {
   }
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  return { esc, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
+  return { esc, api, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
     nav, status, itemRow, wireAdd, appendLine: append, resizePhoto, pickPhoto, photoFromCamera, uploadPhoto, removePhoto,
     uploadPlacePhoto, removePlacePhoto, deleteItem };
 })();

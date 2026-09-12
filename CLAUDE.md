@@ -13,6 +13,7 @@ Rules that keep this project simple:
 - Photos are resized in the browser (`Nerva.resizePhoto`, max 1280 px JPEG) and POSTed as a raw `image/jpeg` body. The server just writes the file, so there is no multipart parser and no image library.
 - Dependencies: express, dotenv, qrcode. Ask before adding anything else.
 - After any write from the browser, call `Nerva.refreshCatalogue()`, or the cached catalogue goes stale.
+- Call the API through `Nerva.api(method, url, body)`, never a bare `fetch(...).json()`. A server running older code answers an unknown route with an HTML error page, and the helper turns that into "restart it" instead of a JSON parse error.
 - Code layout is PLAN.md section 7: one concern per file, under ~150 lines. A verb is one file in `verbs/` with the signature `async (lines, who, store) => results`, discovered by filename. Tests in `test/` call verbs directly with an in-memory store.
 - `PUT /api/items/:id` patches only name, description and tags. Quantity comes from counting, location from filing, photos from uploading, units from numbering. Keep it that way: one field, one deliberate action.
 - Adoption rule: the correct action must be the shortest action. If a user can notice wrong data on a screen, that screen needs a one-tap fix that does not require admin. Never add a required field, approval step or lock.

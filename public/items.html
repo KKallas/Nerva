@@ -141,12 +141,7 @@ form.onsubmit = async e => {
   $('#newerr').hidden = true;
   if (!name) { $('#newname').value = ''; $('#newname').focus(); return; }
   try {
-    const r = await fetch('/api/items', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, quantity: $('#newqty').value }),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'could not add');
+    const d = await Nerva.api('POST', '/api/items', { name, quantity: $('#newqty').value });
     $('#added').insertAdjacentHTML('afterbegin',
       `<li><a href="/i/${d.item.id}">[${d.item.id}]</a> ${esc(d.item.name)} · <a href="/i/${d.item.id}">open</a> · <a href="/sticker?id=${d.item.id}">sticker</a></li>`);
     $('#newname').value = '';

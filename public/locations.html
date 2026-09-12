@@ -79,13 +79,7 @@ function card(l) {
 }
 
 function fail(m) { $('#err').textContent = m; $('#err').hidden = false; }
-async function call(method, url, body) {
-  const r = await fetch(url, body === undefined ? { method }
-    : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || 'failed');
-  return d;
-}
+const call = (method, url, body) => Nerva.api(method, url, body);
 const guard = fn => async (...a) => { $('#err').hidden = true; try { await fn(...a); await load(); } catch (e) { fail(e.message); } };
 
 $('#addloc').onclick = guard(async () => {
