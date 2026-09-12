@@ -92,7 +92,8 @@ test('a numbered one photographs itself, but shares the location photo', async (
   assert.equal(store.items.get('scope1').units.find(u => u.n === 2).photo, true);
   assert.equal(store.items.get('scope1').photo, undefined);
 
-  // a location photo asked for on a unit belongs to the product: they share a shelf
+  // while a unit lives wherever the product does, its location photo is the
+  // product's: they are all on the same shelf
   await put('scope1-2', 'loc');
   assert.ok(has('scope1-loc.jpg'));
   assert.ok(!has('scope1-2-loc.jpg'));

@@ -64,9 +64,10 @@ const shelves = () => `<div class="card"><h2>Shelves</h2>${place.shelves.length
   : '<p class="muted" style="margin:0">No shelves. Add them on the <a href="/locations">Locations</a> page.</p>'}</div>`;
 
 const row = i => `<a class="row" href="/i/${i.id}">
-  ${i.photo ? `<img class="thumb" src="/photos/${i.id}-item.jpg" alt="">` : '<div class="thumb"></div>'}
+  ${i.photoId ? `<img class="thumb" src="/photos/${i.photoId}-item.jpg" alt="">` : '<div class="thumb"></div>'}
   <div class="main"><div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}</div>
-  <div class="where"><span class="qty">${i.quantity}</span>${i.tracked ? ' numbered' : ' in stock'}</div></div></a>`;
+  <div class="where">${i.unit ? (i.inherited ? 'here with the rest' : 'kept here on its own')
+    : `<span class="qty">${i.quantity}</span> in stock`}</div></div></a>`;
 
 function fail(m) { const e = document.getElementById('err'); e.textContent = m; e.hidden = false; }
 function wire() {

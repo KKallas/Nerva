@@ -3,7 +3,7 @@
 const path = require('path');
 const express = require('express');
 const { shelfId, placeName } = require('../lib/places');
-const { quantityOf } = require('../lib/units');
+const { quantityOf, placeOf } = require('../lib/units');
 
 const name = v => String(v == null ? '' : v).trim().slice(0, 60);
 
@@ -13,8 +13,8 @@ module.exports = function locationRoutes(store) {
 
   const view = loc => ({
     ...loc,
-    items: store.itemsAt(loc.id).length,
-    shelves: (loc.shelves || []).map(s => ({ ...s, id: shelfId(loc.id, s.n), items: store.itemsAt(shelfId(loc.id, s.n)).length })),
+    items: store.entriesAt(loc.id).length,
+    shelves: (loc.shelves || []).map(s => ({ ...s, id: shelfId(loc.id, s.n), items: store.entriesAt(shelfId(loc.id, s.n)).length })),
   });
 
   router.get('/api/locations', (req, res) => {
@@ -48,7 +48,7 @@ module.exports = function locationRoutes(store) {
 
   router.delete('/api/locations/:id', (req, res) => {
     const loc = find(req, res); if (!loc) return;
-    const n = store.itemsAt(loc.id).length;
+    const n = store.entriesAt(loc.id).length;
     if (n) return res.status(409).json({ error: `${n} item(s) are filed here; move them first` });
     store.deleteLocation(loc.id);
     store.log({ type: 'location-deleted', id: loc.id, name: loc.name, who: req.who || null });
@@ -85,7 +85,7 @@ module.exports = function locationRoutes(store) {
     const loc = find(req, res); if (!loc) return;
     const num = Number(req.params.n);
     if (!(loc.shelves || []).some(s => s.n === num)) return res.status(404).json({ error: 'no such shelf' });
-    const on = store.itemsAt(shelfId(loc.id, num)).length;
+    const on = store.entriesAt(shelfId(loc.id, num)).length;
     if (on) return res.status(409).json({ error: `${on} item(s) are on this shelf; move them first` });
     loc.shelves = loc.shelves.filter(s => s.n !== num);
     store.saveLocation(loc);
@@ -106,21 +106,37 @@ module.exports = function locationRoutes(store) {
       photo: !!(shelf ? shelf.photo : location.photo),
       locationId: location.id,
       locationName: location.name,
-      shelves: shelf ? [] : (location.shelves || []).map(s => ({ ...s, id: shelfId(location.id, s.n), items: store.itemsAt(shelfId(location.id, s.n)).length })),
-      items: store.itemsAt(id).map(i => ({ id: i.id, name: i.name, quantity: quantityOf(i), kind: i.kind || 'item', tracked: !!i.tracked, photo: !!i.photo })),
+      shelves: shelf ? [] : (location.shelves || []).map(s => ({ ...s, id: shelfId(location.id, s.n), items: store.entriesAt(shelfId(location.id, s.n)).length })),
+      items: store.entriesAt(id).map(e => ({
+        id: e.id,
+        name: e.unit ? `${e.item.name} #${e.unit.n}` : e.item.name,
+        quantity: e.unit ? 1 : quantityOf(e.item),
+        kind: e.item.kind || 'item',
+        unit: !!e.unit,
+        inherited: !!(e.unit && !e.own),          // here because the product is
+        photoId: e.unit && e.unit.photo ? e.id : (e.item.photo ? e.item.id : null),
+      })),
     });
   });
 
-  // Filing an item: remember the place and keep its text in step.
+  // Filing something: remember the place and keep its text in step. Given a
+  // unit id this files that one on its own shelf; clearing it puts the unit
+  // back on whatever the product says, which is where they start.
   router.put('/api/items/:id/shelf', json, (req, res) => {
-    const item = store.items.get(String(req.params.id).toLowerCase());
-    if (!item) return res.status(404).json({ error: 'no such item' });
+    const found = store.resolve(req.params.id);
+    if (!found) return res.status(404).json({ error: 'no such item' });
+    const { item, unit } = found;
+    const target = unit || item;
     const shelf = req.body && req.body.shelf ? String(req.body.shelf).toLowerCase() : null;
     if (shelf && !store.resolvePlace(shelf)) return res.status(400).json({ error: 'no such place' });
-    if (shelf) { item.shelf = shelf; item.location = store.placeText(shelf); }
-    else { delete item.shelf; if (req.body && req.body.clear) item.location = ''; }
+    if (shelf) { target.shelf = shelf; target.location = store.placeText(shelf); }
+    else {
+      delete target.shelf;
+      if (unit) delete target.location;                       // back to the product's
+      else if (req.body && req.body.clear) target.location = '';
+    }
     store.saveItem(item);
-    store.log({ type: 'filed', id: item.id, shelf, who: req.who || null });
+    store.log({ type: 'filed', id: unit ? `${item.id}-${unit.n}` : item.id, shelf, who: req.who || null });
     res.json({ ok: true, item });
   });
 

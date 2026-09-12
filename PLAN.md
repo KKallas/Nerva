@@ -144,7 +144,8 @@ A product is either **bulk** or **tracked**, and that single flag decides how QR
 | Quantity | a number you count and correct | however many units exist, derived |
 | Borrowing | "three of these" | "this one, number 2" |
 | Photo of the thing | one | one per numbered object, listed beside its QR |
-| Photo of where it lives | one | one, shared: they all live on the same shelf |
+| Where it lives | one shelf | the product's shelf is the default; any numbered one can be filed elsewhere on its own |
+| Photo of where it lives | one | the product's, shared, until a numbered one is filed elsewhere and gets its own |
 | Top of the page | both photos, side by side | one wide photo of where they all live |
 
 Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. The product page lists every unit with its QR and its own photo beside it, and the one you arrived from is outlined, so a code in your hand matches a row on screen. A unit with no photo of its own shows the product's, dimmed, as an invitation to photograph the real one. The numbered product's own page carries a single wide photo of the place they share, since a picture of any one of them belongs to that one. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
@@ -252,7 +253,9 @@ POST   /api/items/:id/photo?type=item|loc   raw image/jpeg body; type=item on a 
 DELETE /api/items/:id/photo?type=item|loc
 POST   /api/items/:id/count             { quantity } set the counted number
 GET    /api/items/:id/history           recent events for this item
-PUT    /api/items/:id/shelf             { shelf } file it on a place
+PUT    /api/items/:id/shelf             { shelf } file it on a place; given a unit id
+                                        this files that one, and null puts it back
+                                        wherever the product says
 
 GET    /api/locations                   locations with their shelves
 POST   /api/locations                   { name }
@@ -262,6 +265,7 @@ POST   /api/locations/:id/shelves       { name }
 PUT    /api/locations/:id/shelves/:n    { name }
 DELETE /api/locations/:id/shelves/:n    refused while things are on it
 GET    /api/places/:id                  a location or shelf, and what is on it
+                                        (each numbered one listed separately)
 POST   /api/places/:id/photo            raw image/jpeg body
 GET    /api/places/:id/qr.svg           QR of https://<host>/l/<id>
 GET    /api/items/:id/qr.svg            QR of https://<host>/i/<id> (also qr.png?w=512)

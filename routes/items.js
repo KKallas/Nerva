@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { search } = require('../lib/search');
-const { unitId } = require('../lib/units');
+const { unitId, placeOf } = require('../lib/units');
 
 module.exports = function itemRoutes(store) {
   const router = express.Router();
@@ -30,10 +30,15 @@ module.exports = function itemRoutes(store) {
     }));
     // A unit page carries the product's details plus which one it is. Its own
     // photo is separate; the location photo is the product's, shared by all.
+    const place = placeOf(item, unit);
     res.json({
       ...item, contents, openLoans, unit, unitId: unit ? id : null, productId: item.id,
       productPhoto: !!item.photo,
       photo: unit ? !!unit.photo : !!item.photo,
+      // where this one lives, and whether that is its own or the product's
+      shelf: place.shelf, location: place.location, placeOwn: place.own,
+      productShelf: item.shelf || null, productLocation: item.location || '',
+      locationPhoto: unit && place.own ? !!unit.locationPhoto : !!item.locationPhoto,
     });
   });
 
@@ -49,7 +54,7 @@ module.exports = function itemRoutes(store) {
     const inSets = [...store.items.values()].filter(s => (s.contents || []).some(c => c.itemId === id));
     if (inSets.length) return res.status(409).json({ error: `part of ${inSets.map(s => s.name).join(', ')}` });
     const files = ['item', 'loc'].map(t => `${id}-${t}.jpg`)
-      .concat((item.units || []).map(u => `${id}-${u.n}-item.jpg`));
+      .concat((item.units || []).flatMap(u => [`${id}-${u.n}-item.jpg`, `${id}-${u.n}-loc.jpg`]));
     for (const name of files) {
       const f = path.join(store.dirs.photos, name);
       if (fs.existsSync(f)) fs.unlinkSync(f);

@@ -11,19 +11,22 @@ const KIND = { item: 'item', loc: 'loc' };
 //   <id>-<n>-item.jpg   this actual numbered one
 //   <id>-loc.jpg        where they are kept, shared by every unit
 const photoName = (item, unit, type) =>
-  type === 'loc' ? `${item.id}-loc.jpg` : unit ? `${item.id}-${unit.n}-item.jpg` : `${item.id}-item.jpg`;
+  type === 'item' ? (unit ? `${item.id}-${unit.n}-item.jpg` : `${item.id}-item.jpg`)
+    : unit ? `${item.id}-${unit.n}-loc.jpg` : `${item.id}-loc.jpg`;
 
 module.exports = function photoRoutes(store) {
   const router = express.Router();
 
-  // A unit id ("338va6-2") photographs that one object; a location photo asked
-  // for on a unit is stored on the product, because they all live together.
+  // A unit id ("338va6-2") photographs that one object. A location photo taken
+  // on a unit belongs to the product while the unit lives wherever the product
+  // does, which is the usual case; once a unit has a shelf of its own it gets a
+  // picture of its own place too.
   function target(req, res) {
     const found = store.resolve(req.params.id);
     if (!found) { res.status(404).json({ error: 'no such item' }); return null; }
     const type = req.query.type;
     if (!KIND[type]) { res.status(400).json({ error: 'type must be item or loc' }); return null; }
-    const unit = type === 'loc' ? null : found.unit;
+    const unit = type === 'loc' && !(found.unit && found.unit.shelf) ? null : found.unit;
     return { item: found.item, unit, type, file: path.join(store.dirs.photos, photoName(found.item, unit, type)) };
   }
 

@@ -108,9 +108,12 @@ function photo(o) {
 // A single numbered one shows itself beside the place they share.
 function photos(i) {
   const pid = i.productId || i.id;
+  // A unit that lives somewhere of its own has its own picture of the place;
+  // otherwise it shows the product's, which is the usual case.
+  const ownPlace = i.unit && i.placeOwn;
   const place = extra => photo(Object.assign({
-    kind: 'loc', target: pid, has: i.locationPhoto,
-    src: `/photos/${pid}-loc.jpg`,
+    kind: 'loc', target: ownPlace ? here(i) : pid, has: i.locationPhoto,
+    src: ownPlace ? `/photos/${here(i)}-loc.jpg` : `/photos/${pid}-loc.jpg`,
     caption: 'where it lives',
   }, extra));
 
@@ -125,7 +128,7 @@ function photos(i) {
       fallback: i.unit && !i.photo && i.productPhoto ? `/photos/${pid}-item.jpg` : null,
       fallbackNote: 'photo of the product',
     })}
-    ${place({ note: i.unit ? 'shared by all of them' : '' })}
+    ${place({ note: i.unit ? (ownPlace ? 'this one lives apart from the rest' : 'shared with the rest of them') : '' })}
   </div>`;
 }
 
@@ -149,7 +152,8 @@ function unitList(i, hereN) {
           ${u.photo ? `<img class="pic" src="/photos/${product}-${u.n}-item.jpg" alt="" loading="lazy">` : '<span class="pic none"></span>'}
           <img class="qr" src="/api/items/${product}-${u.n}/qr.svg" alt="QR for #${u.n}" loading="lazy">
           <span class="n">#${u.n}</span>
-          ${u.n === hereN ? '<span class="say">scanned</span>' : ''}
+          ${u.n === hereN ? '<span class="say">scanned</span>'
+            : u.shelf ? `<span class="say">${esc(u.location || 'kept elsewhere')}</span>` : ''}
         </a>
         <a class="pr" href="/sticker?id=${product}-${u.n}">sticker</a>
         <button data-dropunit="${u.n}" title="retire #${u.n}">retire</button>
@@ -182,11 +186,13 @@ function view(i) {
       <ul class="log" id="history"></ul>
       <p class="muted" style="margin:10px 0 0">One QR for the whole lot, and a quantity. Things lent out one at a time want a number and a label each instead, up to 50 of them.</p>
       <div class="btnrow"><button class="btn" id="track">Number each one</button></div></div>` : ''}
-    ${!i.unit ? `<div class="card"><h2>Where it lives</h2>
-      <select id="shelf"><option value="">not filed yet</option></select>
+    <div class="card"><h2>Where it lives</h2>
+      <select id="shelf"><option value="">${i.unit
+        ? 'same as the product' + (i.productLocation ? ` · ${esc(i.productLocation)}` : '')
+        : 'not filed yet'}</option></select>
       <p class="muted" style="margin:8px 0 0" id="placenote"></p>
       <div class="btnrow"><a class="btn" id="placelink" hidden>Open the shelf</a><a class="btn" href="/locations">Manage locations</a></div>
-    </div>` : ''}
+    </div>
     ${i.kind === 'set' ? `<div class="card"><h2>Contents</h2><ul>${i.contents.map(c => `<li><a href="/i/${c.itemId}">${esc(c.name)}</a> × ${c.qty}</li>`).join('') || '<li class="muted">empty</li>'}</ul>
       ${i.missing?.length ? `<p class="warn">Missing: ${i.missing.map(m => `${esc(m.itemId)} × ${m.qty}`).join(', ')}</p>` : ''}</div>` : ''}
     ${i.openLoans?.length ? `<div class="card"><h2>Out with</h2><ul>${i.openLoans.map(l => `<li>${esc(l.who)} × ${l.qty} since ${l.borrowedAt.slice(0, 10)}</li>`).join('')}</ul></div>` : ''}
@@ -228,13 +234,15 @@ async function showHistory() {
     .map(e => `<li>${e.at.slice(0, 10)} · ${said[e.type](e)}${e.who ? ' · ' + Nerva.esc(e.who) : ''}</li>`).join('');
 }
 
-// The place picker lists every location and shelf, so filing is one tap.
+// The place picker lists every location and shelf, so filing is one tap. On a
+// numbered one, the empty choice means "wherever the product says", which is
+// where they all start and where most of them stay.
 async function fillPlaces(select) {
   const locations = await (await fetch('/api/locations')).json().catch(() => []);
   const note = document.getElementById('placenote');
   const link = document.getElementById('placelink');
   if (!locations.length) {
-    note.innerHTML = 'No locations yet. <a href="/locations">Create the first cabinet</a>, then file this item on a shelf.';
+    note.innerHTML = 'No locations yet. <a href="/locations">Create the first cabinet</a>, then file this on a shelf.';
     select.hidden = true; link.hidden = true; return;
   }
   for (const l of locations) {
@@ -242,14 +250,23 @@ async function fillPlaces(select) {
     select.insertAdjacentHTML('beforeend',
       `<optgroup label="${Nerva.esc(l.name)}"><option value="${l.id}">anywhere in ${Nerva.esc(l.name)}</option>${shelves}</optgroup>`);
   }
-  select.value = item.shelf || '';
+  select.value = (item.unit ? (item.placeOwn ? item.shelf : '') : item.shelf) || '';
   const sync = () => { link.hidden = !select.value; if (select.value) link.href = '/l/' + select.value; };
   sync();
-  note.textContent = item.shelf ? '' : item.location ? `Currently written as free text: “${item.location}”. Pick a shelf to make it a real place.` : '';
+  note.innerHTML = placeNote();
   select.onchange = async () => {
-    try { await call('PUT', `/api/items/${item.id}/shelf`, { shelf: select.value || null }); await load(); }
+    try { await call('PUT', `/api/items/${here(item)}/shelf`, { shelf: select.value || null }); await load(); }
     catch (e) { fail('Not filed: ' + e.message); }
   };
+}
+
+function placeNote() {
+  if (item.unit) return item.placeOwn
+    ? 'This one is kept apart from the rest. Choosing “same as the product” puts it back with them.'
+    : 'It is wherever the product says. Pick a shelf if this one is kept somewhere else.';
+  if (item.tracked) return 'Where they all live. A numbered one can be filed somewhere else on its own page.';
+  if (!item.shelf && item.location) return `Currently written as free text: “${Nerva.esc(item.location)}”. Pick a shelf to make it a real place.`;
+  return '';
 }
 
 async function call(method, url, body) {

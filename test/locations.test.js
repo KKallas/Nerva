@@ -89,3 +89,40 @@ test('the count verb applies a list and reports each line', async () => {
   assert.equal(r[2].ok, false); assert.match(r[2].message, /one numbered object/);
   assert.equal(r[3].ok, false);
 });
+
+test('a numbered one can live somewhere of its own, or wherever the product does', async () => {
+  const store = makeStore([{ id: 'scope1', name: 'Scope', tracked: true, units: [{ n: 1 }, { n: 2 }] }]);
+  const { call, close } = serve(store);
+  const loc = (await call('POST', '/api/locations', { name: 'Cabinet C' })).body.location.id;
+  const a = (await call('POST', `/api/locations/${loc}/shelves`, { name: 'drawer 1' })).body.shelf;
+  const b = (await call('POST', `/api/locations/${loc}/shelves`, { name: 'drawer 2' })).body.shelf;
+
+  // the product's shelf is where they all are
+  await call('PUT', '/api/items/scope1/shelf', { shelf: a });
+  assert.equal((await call('GET', `/api/places/${a}`)).body.items.length, 2);
+  assert.deepEqual((await call('GET', `/api/places/${a}`)).body.items.map(i => i.inherited), [true, true]);
+
+  // one of them is kept elsewhere
+  await call('PUT', '/api/items/scope1-2/shelf', { shelf: b });
+  assert.deepEqual((await call('GET', `/api/places/${a}`)).body.items.map(i => i.id), ['scope1-1']);
+  const onB = (await call('GET', `/api/places/${b}`)).body.items;
+  assert.deepEqual(onB.map(i => [i.id, i.name, i.inherited]), [['scope1-2', 'Scope #2', false]]);
+  assert.equal(store.items.get('scope1').units[1].location, 'Cabinet C, drawer 2');
+
+  // the whole cabinet holds both of them
+  assert.equal((await call('GET', `/api/places/${loc}`)).body.items.length, 2);
+
+  // renaming that shelf follows the one filed on it
+  await call('PUT', `/api/locations/${loc}/shelves/2`, { name: 'drawer two' });
+  assert.equal(store.items.get('scope1').units[1].location, 'Cabinet C, drawer two');
+
+  // and a shelf with something on it still cannot be deleted
+  assert.equal((await call('DELETE', `/api/locations/${loc}/shelves/2`)).status, 409);
+
+  // putting it back with the rest clears its own place
+  await call('PUT', '/api/items/scope1-2/shelf', { shelf: null });
+  assert.equal(store.items.get('scope1').units[1].shelf, undefined);
+  assert.equal(store.items.get('scope1').units[1].location, undefined);
+  assert.equal((await call('GET', `/api/places/${a}`)).body.items.length, 2);
+  close();
+});
