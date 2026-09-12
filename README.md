@@ -5,6 +5,7 @@ Ultra-simple stock management for the robotics lab at Narava University.
 Need M5 bolts? Open Nerva, type `m5`, see the drawer and a photo of it. Beyond lookup, the whole system is two moves: **make a list** by scanning QR codes (plain text, offline, no login), then **file it** with one verb: `find`, `out`, `in`, `count`, `new`.
 
 - Every item has a photo, a photo of where it lives, and a QR code that opens its page.
+- Bolts are a box with a quantity and one QR. An oscilloscope or a soldering set is numbered instead, so each physical one carries its own QR at `<id>-1`, `<id>-2`, and can be lent out on its own.
 - Sets (e.g. soldering sets) are lent out and checked back in; missing parts are noted on the same list and replaced from stock.
 - Identity is an email you type once, kept in a cookie. No passwords, no identity provider.
 - No database. One Node process, all state lives in the `data/` folder. Backup = copy the folder.

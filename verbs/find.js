@@ -2,20 +2,26 @@
 // An exact id → one ok line. Text (or an id-looking word that does not exist)
 // → up to 5 `matches` the user can pick from to swap the line for an exact id.
 const { search } = require('../lib/search');
+const { quantityOf, unitId } = require('../lib/units');
 
 function brief(item) {
-  return { id: item.id, name: item.name, quantity: item.quantity ?? 0, location: item.location || '', kind: item.kind || 'item' };
+  return { id: item.id, name: item.name, quantity: quantityOf(item), location: item.location || '', kind: item.kind || 'item', tracked: !!item.tracked };
 }
-function describe(item) {
-  return `${item.name} · ${item.quantity ?? 0} · ${item.location || 'no location set'}`;
+function describe(item, unit) {
+  const what = unit ? `${item.name} #${unit.n}` : item.name;
+  const many = unit ? 'this one' : `${quantityOf(item)}`;
+  return `${what} · ${many} · ${item.location || 'no location set'}`;
 }
 
 module.exports = async function find(lines, who, store) {
   const catalogue = store.catalogue();
   return lines.map(line => {
-    if (line.id && store.items.has(line.id)) {
-      const item = store.items.get(line.id);
-      return { n: line.n, line: line.raw, ok: true, message: describe(item), item: brief(item) };
+    const found = line.id && store.resolve(line.id);
+    if (found) {
+      const { item, unit } = found;
+      const b = brief(item);
+      if (unit) { b.id = unitId(item.id, unit.n); b.name = `${item.name} #${unit.n}`; b.quantity = 1; }
+      return { n: line.n, line: line.raw, ok: true, message: describe(item, unit), item: b };
     }
     // forgiving: "multimeter for the demo" → try dropping trailing words until something matches
     const words = line.text.split(/\s+/).filter(Boolean);

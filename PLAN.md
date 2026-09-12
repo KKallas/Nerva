@@ -99,6 +99,19 @@ data/
   log.jsonl              # append-only audit log, one JSON event per line
 ```
 
+### Two kinds of thing
+
+A product is either **bulk** or **tracked**, and that single flag decides how QR codes work.
+
+| | bulk | tracked |
+|---|---|---|
+| Example | M5 bolts, solder, jumper wires | oscilloscope, power supply, soldering set |
+| QR codes | one, on the box | one per physical object: `<id>-1`, `<id>-2`, … |
+| Quantity | a number you count and correct | however many units exist, derived |
+| Borrowing | "three of these" | "this one, number 2" |
+
+Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
+
 ### Item (`data/items/<id>.json`)
 
 ```json
@@ -189,8 +202,11 @@ Plain and curl-friendly. The text format is the API.
 POST   /api/file?verb=out               body: text/plain (the list) or JSON { text }
                                         → { lines: [ { line, ok, message, item? } ] }
 GET    /api/items?q=                    search
-GET    /api/items/:id
+GET    /api/items/:id                   a product, or one unit of it ("338va6-2")
 PUT    /api/items/:id                   admin
+PUT    /api/items/:id/tracked           { tracked } switch between quantity and numbered units
+POST   /api/items/:id/units             { count } add numbered units
+DELETE /api/items/:id/units/:n          retire one (refused while it is out)
 DELETE /api/items/:id                   admin (refused while on loan or inside a set)
 POST   /api/items/:id/photo?type=item|loc   raw image/jpeg body
 DELETE /api/items/:id/photo?type=item|loc
@@ -232,6 +248,7 @@ lib/store.js           load/save JSON files, atomic writes, in-memory maps, log(
 lib/parse.js           the list parser (also served to the browser as-is)
 lib/who.js             cookie / X-Who identity, requireAdmin()
 lib/net.js             which addresses this machine is reachable on
+lib/units.js           bulk vs numbered units, unit ids
 verbs/find.js          one file per verb, same signature:
 verbs/out.js             module.exports = async (lines, who, store) => results
 verbs/in.js
@@ -239,6 +256,7 @@ verbs/count.js
 verbs/new.js
 verbs/fix.js
 routes/items.js        item read + delete
+routes/units.js        numbering on/off, add and retire units
 routes/photos.js       photo upload and removal
 routes/qr.js           qr.svg / qr.png and the label sheet
 routes/settings.js     config, instance status, addresses

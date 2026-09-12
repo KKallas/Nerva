@@ -14,6 +14,7 @@ Rules that keep this project simple:
 - After any write from the browser, call `Nerva.refreshCatalogue()`, or the cached catalogue goes stale.
 - Code layout is PLAN.md section 7: one concern per file, under ~150 lines. A verb is one file in `verbs/` with the signature `async (lines, who, store) => results`, discovered by filename. Tests in `test/` call verbs directly with an in-memory store.
 - Adoption rule: the correct action must be the shortest action. If a user can notice wrong data on a screen, that screen needs a one-tap fix that does not require admin. Never add a required field, approval step or lock.
+- A product is bulk (a quantity, one QR) or tracked (`tracked: true` plus `units: [{n}]`, one QR each at `<id>-<n>`). Resolve any id with `store.resolve(id)` -> `{ item, unit }`; never assume `store.items.get(id)`. A tracked product's `quantity` is derived on save, never edited. Unit numbers come from `nextUnit` and are never reused.
 - Pages are Checkout (`/`), Items (`/items`) and later Locations (`/locations`). Shared styles live in `public/app.css`, shared browser helpers in `public/app.js` (cached catalogue, the list, nav, item rows). A page adds only what is its own.
 - `/` is first of all a lookup tool: search box on top, instant, local, offline. Never make search wait on the server.
 - Mobile first. `/` must work one-handed on a phone at the shelf, offline except for pressing a verb.

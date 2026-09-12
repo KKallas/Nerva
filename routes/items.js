@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { search } = require('../lib/search');
+const { unitId } = require('../lib/units');
 
 module.exports = function itemRoutes(store) {
   const router = express.Router();
@@ -17,14 +18,18 @@ module.exports = function itemRoutes(store) {
     res.json(q ? search(store.catalogue(), q, 50) : store.catalogue().slice(0, 50));
   });
 
+  // Works for a product ("338va6") and for one of its units ("338va6-2").
   router.get('/api/items/:id', (req, res) => {
-    const item = store.items.get(String(req.params.id).toLowerCase());
-    if (!item) return res.status(404).json({ error: 'no such item' });
-    const openLoans = [...store.loans.values()].filter(l => l.itemId === item.id && !l.returnedAt);
+    const found = store.resolve(req.params.id);
+    if (!found) return res.status(404).json({ error: 'no such item' });
+    const { item, unit } = found;
+    const id = unit ? unitId(item.id, unit.n) : item.id;
+    const openLoans = [...store.loans.values()].filter(l => l.itemId === id && !l.returnedAt);
     const contents = (item.contents || []).map(c => ({
       ...c, name: store.items.get(c.itemId)?.name || c.itemId,
     }));
-    res.json({ ...item, contents, openLoans });
+    // A unit page carries the product's details plus which one it is.
+    res.json({ ...item, contents, openLoans, unit, unitId: unit ? id : null, productId: item.id });
   });
 
   // Delete. Refused while the item is out on loan or is part of a set:
@@ -33,7 +38,8 @@ module.exports = function itemRoutes(store) {
     const id = String(req.params.id).toLowerCase();
     const item = store.items.get(id);
     if (!item) return res.status(404).json({ error: 'no such item' });
-    const open = [...store.loans.values()].filter(l => l.itemId === id && !l.returnedAt);
+    const mine = new Set([id, ...(item.units || []).map(u => unitId(id, u.n))]);
+    const open = [...store.loans.values()].filter(l => mine.has(l.itemId) && !l.returnedAt);
     if (open.length) return res.status(409).json({ error: `still out on ${open.length} open loan(s)` });
     const inSets = [...store.items.values()].filter(s => (s.contents || []).some(c => c.itemId === id));
     if (inSets.length) return res.status(409).json({ error: `part of ${inSets.map(s => s.name).join(', ')}` });

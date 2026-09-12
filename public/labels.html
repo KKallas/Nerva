@@ -42,8 +42,25 @@ const esc = Nerva.esc;
 const ids = (new URLSearchParams(location.search).get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
 Nerva.loadCatalogue((all, how) => {
   if (how === 'cached') return;
-  const items = ids.length ? ids.map(id => all.find(i => i.id === id)).filter(Boolean) : all;
-  document.getElementById('what').textContent = `${items.length} label${items.length === 1 ? '' : 's'}. Each QR opens that item's page.`;
+  // A product that is numbered individually turns into one label per unit,
+  // because each physical one carries its own QR. An explicit unit id
+  // ("338va6-2") prints just that one.
+  const labels = [];
+  const push = (i, n) => labels.push({
+    id: n ? `${i.id}-${n}` : i.id,
+    name: i.name + (n ? ` #${n}` : ''),
+    location: i.location,
+  });
+  const expand = i => (i.tracked && i.units && i.units.length ? i.units.forEach(n => push(i, n)) : push(i));
+  if (!ids.length) all.forEach(expand);
+  for (const id of ids) {
+    const m = /^(.+)-(\d+)$/.exec(id);
+    const item = all.find(i => i.id === (m ? m[1] : id));
+    if (!item) continue;
+    if (m) push(item, Number(m[2])); else expand(item);
+  }
+  const items = labels;
+  document.getElementById('what').textContent = `${items.length} label${items.length === 1 ? '' : 's'}. Each QR opens that item's page. Numbered items get one label each.`;
   document.getElementById('sheet').innerHTML = items.map(i => `
     <div class="label">
       <img src="/api/items/${i.id}/qr.svg" alt="QR for ${esc(i.name)}">

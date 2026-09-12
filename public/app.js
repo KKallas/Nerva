@@ -44,7 +44,7 @@ window.Nerva = (function () {
     return `<a class="row" href="/i/${i.id}">
       ${i.locationPhoto ? `<img class="thumb" src="/photos/${i.id}-loc.jpg" alt="" loading="lazy">` : '<div class="thumb"></div>'}
       <div class="main">
-        <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}</div>
+        <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}${i.tracked ? ' <span class="tag">numbered</span>' : ''}</div>
         <div class="where">${bits}</div>
       </div>
       <button class="add" data-id="${i.id}" title="add to list" aria-label="add to list">+</button>
