@@ -251,7 +251,10 @@ async function call(method, url, body) {
 }
 
 function wire() {
-  document.getElementById('add').onclick = () => { Nerva.addLine(here(item)); location.href = '/'; };
+  document.getElementById('add').onclick = () => {
+    Nerva.addLine(here(item), item.unit ? `${item.name} #${item.unit.n}` : item.name);
+    location.href = '/';
+  };
 
   document.getElementById('del').onclick = async function () {
     if (item.unit) {

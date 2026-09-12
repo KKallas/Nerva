@@ -17,15 +17,22 @@ So "I need a multimeter, some jumper wires and soldering set 3" is: scan, scan, 
 ### List format
 
 ```
-a7k3q9              one multimeter
-b2x8   x3           three of item b2x8
-s0ld3r              soldering set 3
-s0ld3r - tweez1 x1  (in mode) set returned, one tweezers missing
-Jumper wires 40pc   (new mode) any line that is not an id becomes a new item
+[a7k3q9] Multimeter UNI-T UT61E        one multimeter
+[b2x8] Jumper wires M-M x3             three of them
+[s0ld3r-2] Soldering set #2            that one numbered set
+[s0ld3r-2] Soldering set #2 - tweez1 x1   (in) returned, one tweezers missing
+a7k3q9                                 a bare id, for typing or scanning
+Jumper wires 40pc                      (new) a line that is no id becomes an item
 # comments and blank lines are ignored
 ```
 
-Rules: first token is the id, `xN` anywhere is quantity (default 1), `- <id> [xN]` after a set lists missing parts, everything else is a note. The same parser is used by the web page, the API and the CLI.
+Rules: an id in square brackets at the start of a line is what the line **means**;
+everything after it is the name, there so the list can be read and edited by a
+person, and it can be changed or lost without changing the line. A bare first
+token that looks like an id still works, so a scan or a typed code needs no
+brackets. `xN` anywhere is the quantity (default 1), `- <id> [xN]` after a set
+lists missing parts. Every line the app writes is in the bracketed form. The
+same parser is used by the web page, the API and the CLI.
 
 ### Verbs
 

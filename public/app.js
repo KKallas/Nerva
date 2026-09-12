@@ -23,7 +23,10 @@ window.Nerva = (function () {
   // --- the list, shared between pages ---
   const listText = () => get('nerva.list') || '';
   const setList = t => { set('nerva.list', t); window.dispatchEvent(new Event('nerva:list')); };
-  const addLine = line => setList((listText().trimEnd() ? listText().trimEnd() + '\n' : '') + line + '\n');
+  const append = line => setList((listText().trimEnd() ? listText().trimEnd() + '\n' : '') + line + '\n');
+  // Lines the app writes read "[id] Name": the brackets are what the line
+  // means, the name is there so the list can be read and edited by a person.
+  const addLine = (id, name, qty) => append(NervaParse.formatLine(id, name, qty));
   const listCount = () => (window.NervaParse ? NervaParse.parseList(listText()).length : 0);
 
   // --- nav, same on every page ---
@@ -47,7 +50,7 @@ window.Nerva = (function () {
         <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}${i.tracked ? ' <span class="tag">numbered</span>' : ''}</div>
         <div class="where">${bits}</div>
       </div>
-      <button class="add" data-id="${i.id}" title="add to list" aria-label="add to list">+</button>
+      <button class="add" data-id="${i.id}" data-name="${esc(i.name)}" title="add to list" aria-label="add to list">+</button>
     </a>`;
   }
 
@@ -56,7 +59,7 @@ window.Nerva = (function () {
     container.addEventListener('click', e => {
       const b = e.target.closest('.add'); if (!b) return;
       e.preventDefault();
-      addLine(b.dataset.id);
+      addLine(b.dataset.id, b.dataset.name);
       b.textContent = '✓'; setTimeout(() => { b.textContent = '+'; }, 700);
     });
   }
@@ -129,6 +132,6 @@ window.Nerva = (function () {
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   return { esc, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
-    nav, status, itemRow, wireAdd, resizePhoto, pickPhoto, photoFromCamera, uploadPhoto, removePhoto,
+    nav, status, itemRow, wireAdd, appendLine: append, resizePhoto, pickPhoto, photoFromCamera, uploadPhoto, removePhoto,
     uploadPlacePhoto, removePlacePhoto, deleteItem };
 })();

@@ -95,9 +95,21 @@ async function file(verb) {
     out.innerHTML = d.lines.map(renderResult).join('') || '<p class="muted">Nothing to do.</p>';
   } catch (e) { out.innerHTML = '<div class="r bad">Could not reach the server (offline?). The list is kept.</div>'; }
 }
+// The line as the user wrote it, with its id turned into a link rather than
+// repeated in front of it.
+function header(l) {
+  const line = esc(l.line.trim());
+  if (!l.item) return `<b>${line}</b>`;
+  const id = l.item.id;
+  const link = `<a href="/i/${id}">`;
+  return `<b>${line.includes('[' + id + ']')
+    ? line.replace('[' + id + ']', `${link}[${id}]</a>`)
+    : `${link}${id}</a> ${line}`}</b>`;
+}
+
 function renderResult(l) {
-  const head = `<b>${esc(l.line.trim())}</b>`;
-  if (l.item) return `<div class="r"><b><a href="/i/${l.item.id}">${l.item.id}</a> ${esc(l.line.trim())}</b>${esc(l.message)}</div>`;
+  const head = header(l);
+  if (l.item) return `<div class="r">${head}${esc(l.message)}</div>`;
   if (!l.matches) return `<div class="r bad">${head}${esc(l.message)}</div>`;
   // text matched one or more items: offer to swap the line for the exact id
   return `<div class="r" data-n="${l.n}" data-line="${esc(l.line)}">${head}${esc(l.message)}<div class="opts">${l.matches.map(m => `
@@ -107,18 +119,18 @@ function renderResult(l) {
 $('#out').addEventListener('click', e => {
   const b = e.target.closest('.opt'); if (!b) return;
   const r = b.closest('.r');
-  swapLine(Number(r.dataset.n), r.dataset.line, b.dataset.id);
-  r.outerHTML = `<div class="r swapped"><b><a href="/i/${b.dataset.id}">${b.dataset.id}</a> ${esc(b.dataset.name)}</b>${esc(b.dataset.desc)}</div>`;
+  swapLine(Number(r.dataset.n), r.dataset.line, b.dataset.id, b.dataset.name);
+  r.outerHTML = `<div class="r swapped"><b><a href="/i/${b.dataset.id}">[${b.dataset.id}]</a> ${esc(b.dataset.name)}</b>${esc(b.dataset.desc)}</div>`;
 });
-// Replace the line that produced a result with the exact id. Keeps any "xN" quantity
-// and note the user typed. Falls back to searching for the line if the list was edited.
-function swapLine(n, original, id) {
+// Replace the line that produced a result with "[id] Name", keeping any "xN"
+// quantity the user typed. Falls back to searching for the line if the list
+// was edited while the results were on screen.
+function swapLine(n, original, id, name) {
   const lines = ta.value.split('\n');
   let i = n - 1;
   if (lines[i] !== original) i = lines.findIndex(x => x.trim() === original.trim());
   const parsed = NervaParse.parseLine(original, n) || {};
-  const extra = [parsed.qty > 1 ? 'x' + parsed.qty : '', parsed.id ? parsed.note : ''].filter(Boolean).join(' ');
-  const replacement = (id + ' ' + extra).trim();
+  const replacement = NervaParse.formatLine(id, name, parsed.qty);
   if (i < 0) lines.push(replacement); else lines[i] = replacement;
   ta.value = lines.join('\n');
   Nerva.setList(ta.value);

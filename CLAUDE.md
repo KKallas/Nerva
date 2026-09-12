@@ -4,6 +4,7 @@ Read PLAN.md before changing anything. It is the spec.
 
 Rules that keep this project simple:
 - The list is the product. Plain text, one line per item, parsed by ONE shared parser used by the web page, the API and the CLI. Never invent a second input path.
+- Lines the app writes are `[id] Name`, built with `NervaParse.formatLine(id, name, qty)`: the brackets are the identity, the name is for the reader. Never write a bare id from code, and never read the name as meaning anything.
 - Plain Node 22 + Express. No TypeScript, no bundler, no framework on the frontend, no database.
 - State = files in `data/`. One JSON per item/loan, atomic write (tmp + rename), in-memory map loaded at startup.
 - Filing applies line by line and reports per line. Good lines stick, bad lines are returned for retry. No transactions.
