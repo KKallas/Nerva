@@ -39,6 +39,20 @@ Rules: first token is the id, `xN` anywhere is quantity (default 1), `- <id> [xN
 
 `find` and building the list need nothing. `out`, `in`, `count` need to know who you are (see §6). `new` and editing need admin.
 
+### Why people will keep the data in order
+
+Nobody maintains an inventory out of duty. They keep it right only if the correct action is also the shortest way to what they want. Every design choice below is checked against that:
+
+- **Lookup is the reward.** Nerva answers "where is it, is there any, who has it" faster than walking or asking in the chat. People open it because it saves them a trip, and every open is a chance to fix something.
+- **Fixing is one tap from where you notice.** On the item page: *wrong shelf?* → retake the location photo and it is fixed. *Count is off?* → type the number. *Not here at all?* → **0**. No form, no admin, no "report to someone".
+- **Taking is faster than not taking.** You already have the list from the lookup; `out` is one tap. Skipping it saves nothing.
+- **Bringing back is faster than hiding.** `in` on the same list, and for a set the checklist is right there; noting a missing tweezer takes one tap and no blame is attached. The log shows what was noted, not who lost it.
+- **Visibility replaces nagging.** "Soldering set 3 is with Mari since Tuesday" answers the question before it is asked. Overdue is a plain list, not an email.
+- **Contributions are cheap and visible.** Adding a photo, a tag or a synonym takes seconds from a phone, and the next person's search gets better. The item page shows "last updated by" so good work is seen.
+- **Nothing is punished.** No required fields beyond a name, no approval steps, no locked records. A wrong entry is fixed by the next person, and `log.jsonl` keeps history for the rare dispute.
+
+Rule for every screen: **if a user can notice that data is wrong here, they must be able to fix it here, in one tap, without logging in as admin.**
+
 ### Search that is faster than walking
 
 - The whole catalogue (id, name, description, tags, location, quantity; no photos) is one JSON of ~200 KB for 2000 items. The browser downloads it once, keeps it in `localStorage`, refreshes it in the background. Search-as-you-type runs locally: results appear on the first keystroke, on the lab Wi-Fi or without it.
@@ -154,7 +168,7 @@ One app page does nearly everything; the rest are small.
 | URL                  | Who   | What                                                        |
 |----------------------|-------|-------------------------------------------------------------|
 | `/`                  | all   | **Search + list.** Search box on top with instant local results (location, photo, quantity, **+**). Below it the list: textarea, scan button (camera overlay, each scan appends a line), verb buttons `find out in count new`, results under each line after filing. |
-| `/i/<id>`            | all   | Item page: photos, location, quantity, QR, "add to list", history. **QR codes point here**, so a phone camera app lands on it and one tap adds it to the list. |
+| `/i/<id>`            | all   | Item page: photos, location, quantity, who has it, QR, "add to list", history. One-tap fixes for everyone: retake location photo, set count, add tag. **QR codes point here**, so a phone camera app lands on it and one tap adds it to the list. |
 | `/i/<id>/edit`       | admin | Edit fields, contents (for sets), take / upload photos (`<input capture>`) |
 | `/search?q=`         | all   | Text search, results with location thumbnail, "add to list" |
 | `/loans`             | all   | My open loans (everyone), all open loans + overdue (admin)   |
@@ -201,7 +215,7 @@ The lab is a trusted room. The system needs to know *who* took what, not to prov
 1. First time you press `out`/`in`/`count`, `/hello` asks for your email and name. That is the whole registration.
 2. The server stores `{ email, name, role }` in a signed cookie (`cookie-session`, one year). Signed means a user cannot silently change their email, but there is no password. Clearing the cookie just means typing the email again.
 3. `users.json` gets a row on first sight. Role is `admin` if the email is in `config.json.adminEmails` or was promoted in `/admin`, otherwise `user`.
-4. `new`, `fix`, edit, delete, `/admin` require `admin`.
+4. Anyone identified can `out`, `in`, `count`, retake photos, and add tags. `new`, `fix`, delete, renaming, and `/admin` require `admin`. Keep the admin surface small: the lab lives on ordinary users fixing things as they go.
 
 If the university ever demands real login, `/hello` is the only page to swap for a Microsoft Entra ID redirect (`openid-client`, ~60 lines). Everything else keys on the email and stays the same. Do not build that until someone asks.
 
