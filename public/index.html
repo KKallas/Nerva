@@ -38,6 +38,13 @@
   .out .r.bad { border-left-color:var(--bad); }
   .out .r b { display:block; font-family:system-ui,sans-serif; }
   .out .r a { color:var(--accent); text-decoration:none; }
+  .out .r.swapped { border-left-color:var(--accent); }
+  .opts { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+  .opt { display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; font-family:system-ui,sans-serif; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); cursor:pointer; }
+  .opt:active { background:var(--line); }
+  .opt .id { font-family:ui-monospace,Menlo,monospace; color:var(--muted); font-size:13px; flex:none; }
+  .opt .nm { flex:1; min-width:0; }
+  .opt .nm small { display:block; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -126,11 +133,37 @@ async function file(verb) {
     const r = await fetch('/api/file?verb=' + verb, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: ta.value });
     const d = await r.json();
     if (!r.ok) { out.innerHTML = `<div class="r bad">${esc(d.error)}</div>`; return; }
-    out.innerHTML = d.lines.map(l => `<div class="r ${l.ok ? '' : 'bad'}"><b>${esc(l.line.trim())}</b>${linkIds(esc(l.message))}</div>`).join('')
-      || '<p class="muted">Nothing to do.</p>';
+    out.innerHTML = d.lines.map(renderResult).join('') || '<p class="muted">Nothing to do.</p>';
   } catch (e) { out.innerHTML = `<div class="r bad">Could not reach the server (offline?). The list is kept.</div>`; }
 }
-function linkIds(s) { return s.replace(/^([a-z0-9]{4,8})(?=\s\s)/gm, '<a href="/i/$1">$1</a>'); }
+function renderResult(l) {
+  const head = `<b>${esc(l.line.trim())}</b>`;
+  if (l.item) return `<div class="r"><b><a href="/i/${l.item.id}">${l.item.id}</a> ${esc(l.line.trim())}</b>${esc(l.message)}</div>`;
+  if (!l.matches) return `<div class="r bad">${head}${esc(l.message)}</div>`;
+  // text matched one or more items: offer to swap the line for the exact id
+  return `<div class="r" data-n="${l.n}" data-line="${esc(l.line)}">${head}${esc(l.message)}<div class="opts">${l.matches.map(m => `
+    <button class="opt" data-id="${m.id}" data-name="${esc(m.name)}" data-desc="${esc(m.quantity + ' · ' + (m.location || 'no location'))}">
+      <span class="id">${m.id}</span><span class="nm">${esc(m.name)}${m.kind === 'set' ? ' <small>set</small>' : ''}<small>${m.quantity} · ${esc(m.location) || 'no location'}</small></span></button>`).join('')}</div></div>`;
+}
+$('#out').addEventListener('click', e => {
+  const b = e.target.closest('.opt'); if (!b) return;
+  const r = b.closest('.r');
+  swapLine(Number(r.dataset.n), r.dataset.line, b.dataset.id);
+  r.outerHTML = `<div class="r swapped"><b><a href="/i/${b.dataset.id}">${b.dataset.id}</a> ${esc(b.dataset.name)}</b>${esc(b.dataset.desc)}</div>`;
+});
+// Replace the line that produced a result with the exact id. Keeps any "xN" quantity
+// and note the user typed. Falls back to searching for the line if the list was edited.
+function swapLine(n, original, id) {
+  const lines = ta.value.split('\n');
+  let i = n - 1;
+  if (lines[i] !== original) i = lines.findIndex(x => x.trim() === original.trim());
+  const parsed = NervaParse.parseLine(original, n) || {};
+  const extra = [parsed.qty > 1 ? 'x' + parsed.qty : '', parsed.id ? parsed.note : ''].filter(Boolean).join(' ');
+  const replacement = (id + ' ' + extra).trim();
+  if (i < 0) lines.push(replacement); else lines[i] = replacement;
+  ta.value = lines.join('\n');
+  ta.dispatchEvent(new Event('input'));
+}
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 </script>

@@ -17,6 +17,12 @@ test('a name that cannot be an id has no id candidate', () => {
   assert.equal(l.text, 'M5 bolts 20 mm');
 });
 
+test('quantity is pulled out of text lines too', () => {
+  const [l] = parseList('M5 bolts x25');
+  assert.equal(l.qty, 25);
+  assert.equal(l.text, 'M5 bolts');
+});
+
 test('missing parts after a dash', () => {
   const [l] = parseList('s0ld3r - tweez1 x1 - wick01');
   assert.equal(l.id, 's0ld3r');
