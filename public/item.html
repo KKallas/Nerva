@@ -12,6 +12,9 @@
   .big { font-size:18px; margin:12px 0; }
   .big b { font-size:26px; }
   .photos { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+  /* one wide picture when the individual photos live on the numbered ones */
+  .photos.one { grid-template-columns:1fr; }
+  .photos.one img, .photos.one .none { aspect-ratio:3/2; }
   .photos figure { margin:0; }
   .photos img, .photos .none { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:var(--line); display:block; border:0; }
   .photos .none { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; cursor:pointer; font:inherit; text-align:center; padding:8px; }
@@ -97,24 +100,32 @@ function photo(o) {
   </figure>`;
 }
 
-// The two slots, which differ depending on whether this is one of many.
+// What goes at the top of the page.
+//
+// A counted product shows two squares: the thing, and where it lives.
+// A numbered product shows one wide picture of where they all live, because
+// the picture of each individual one belongs to that one and is listed below.
+// A single numbered one shows itself beside the place they share.
 function photos(i) {
   const pid = i.productId || i.id;
+  const place = extra => photo(Object.assign({
+    kind: 'loc', target: pid, has: i.locationPhoto,
+    src: `/photos/${pid}-loc.jpg`,
+    caption: 'where it lives',
+  }, extra));
+
+  if (i.tracked && !i.unit) {
+    return `<div class="photos one">${place({ caption: 'where they all live' })}</div>`;
+  }
   return `<div class="photos">
     ${photo({
       kind: 'item', target: here(i), has: i.photo,
       src: `/photos/${here(i)}-item.jpg`,
-      caption: i.unit ? `this one, #${i.unit.n}` : i.tracked ? 'the product' : 'the item',
+      caption: i.unit ? `this one, #${i.unit.n}` : 'the item',
       fallback: i.unit && !i.photo && i.productPhoto ? `/photos/${pid}-item.jpg` : null,
       fallbackNote: 'photo of the product',
-      note: i.unit ? '' : i.tracked ? 'each numbered one can have its own' : '',
     })}
-    ${photo({
-      kind: 'loc', target: pid, has: i.locationPhoto,
-      src: `/photos/${pid}-loc.jpg`,
-      caption: 'where it lives',
-      note: (i.tracked || i.unit) ? 'shared by all of them' : '',
-    })}
+    ${place({ note: i.unit ? 'shared by all of them' : '' })}
   </div>`;
 }
 

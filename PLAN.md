@@ -143,10 +143,11 @@ A product is either **bulk** or **tracked**, and that single flag decides how QR
 | QR codes | one, on the box | one per physical object: `<id>-1`, `<id>-2`, … |
 | Quantity | a number you count and correct | however many units exist, derived |
 | Borrowing | "three of these" | "this one, number 2" |
-| Photo of the thing | one | one per numbered object, falling back to the product's |
+| Photo of the thing | one | one per numbered object, listed beside its QR |
 | Photo of where it lives | one | one, shared: they all live on the same shelf |
+| Top of the page | both photos, side by side | one wide photo of where they all live |
 
-Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. The product page lists every unit with its QR and its own photo beside it, and the one you arrived from is outlined, so a code in your hand matches a row on screen. A unit with no photo of its own shows the product's, dimmed, as an invitation to photograph the real one. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
+Unit numbers are never reused. Retiring `#2` and adding another gives `#3`, so a label still stuck on something can never come to mean a different object. The product page lists every unit with its QR and its own photo beside it, and the one you arrived from is outlined, so a code in your hand matches a row on screen. A unit with no photo of its own shows the product's, dimmed, as an invitation to photograph the real one. The numbered product's own page carries a single wide photo of the place they share, since a picture of any one of them belongs to that one. Numbering is capped at 50 per product: past that you are counting, not labelling. A tracked set keeps its `missing` list per unit, since soldering set #2 can be short a tweezers while #3 is complete.
 
 ### Item (`data/items/<id>.json`)
 
