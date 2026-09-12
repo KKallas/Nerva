@@ -42,6 +42,48 @@ module.exports = function itemRoutes(store) {
     });
   });
 
+  // The few fields a person types. Everything else about an item is set by
+  // doing something to it: counting, filing, photographing, numbering.
+  const FIELDS = {
+    name: v => String(v == null ? '' : v).trim().slice(0, 120),
+    description: v => String(v == null ? '' : v).trim().slice(0, 500),
+    tags: v => (Array.isArray(v) ? v : String(v == null ? '' : v).split(/[,\n]/))
+      .map(t => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 20),
+  };
+
+  router.post('/api/items', express.json(), (req, res) => {
+    const body = req.body || {};
+    const name = FIELDS.name(body.name);
+    if (!name) return res.status(400).json({ error: 'a name is required' });
+    const quantity = Math.max(0, Math.min(1e6, Math.round(Number(body.quantity)) || 0));
+    const item = store.saveItem({
+      id: store.newId(),
+      kind: body.kind === 'set' ? 'set' : 'item',
+      name,
+      description: FIELDS.description(body.description),
+      tags: FIELDS.tags(body.tags),
+      quantity,
+      location: '',
+    });
+    store.log({ type: 'new', id: item.id, name, quantity, who: req.who || null });
+    res.json({ ok: true, item });
+  });
+
+  // Only the typed fields, so a stray key cannot wipe units, shelves or photos.
+  router.put('/api/items/:id', express.json(), (req, res) => {
+    const item = store.items.get(String(req.params.id).toLowerCase());
+    if (!item) return res.status(404).json({ error: 'no such item' });
+    const body = req.body || {};
+    const patch = {};
+    for (const [k, clean] of Object.entries(FIELDS)) if (body[k] !== undefined) patch[k] = clean(body[k]);
+    if (patch.name === '') return res.status(400).json({ error: 'a name is required' });
+    if (!Object.keys(patch).length) return res.status(400).json({ error: 'nothing to change' });
+    Object.assign(item, patch);
+    store.saveItem(item);
+    store.log({ type: 'edit', id: item.id, fields: Object.keys(patch), who: req.who || null });
+    res.json({ ok: true, item });
+  });
+
   // Delete. Refused while the item is out on loan or is part of a set:
   // both would leave a dangling reference someone has to puzzle out later.
   router.delete('/api/items/:id', (req, res) => {

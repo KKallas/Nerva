@@ -17,6 +17,15 @@
   h2.group { font-size:14px; color:var(--muted); margin:18px 0 4px; text-transform:uppercase; letter-spacing:.04em; display:flex; justify-content:space-between; }
   .flags { font-size:12px; }
   .flags b { color:var(--warn); font-weight:600; }
+  .newform { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
+  .newform input[type=text] { flex:1 1 100%; min-width:0; }   /* the name gets its own row */
+  .newform label { font-size:14px; }
+  .newform button { flex:none; padding:10px 14px; }
+  .newform input[type=number] { width:84px; flex:none; font-size:16px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
+  .newform .err { flex-basis:100%; color:var(--bad); font-size:14px; margin:0; }
+  .added { flex-basis:100%; list-style:none; margin:2px 0 0; padding:0; font-size:14px; }
+  .added li { padding:3px 0; color:var(--muted); }
+  .added a { color:var(--accent); text-decoration:none; font-family:ui-monospace,Menlo,monospace; }
 </style>
 </head>
 <body>
@@ -25,6 +34,7 @@
   <div class="chips" id="chips"></div>
 </header>
 <div class="bar">
+  <button class="btn primary" id="newitem" style="font-size:14px;padding:7px 11px">+ New item</button>
   <span class="muted" id="summary"></span>
   <span style="flex:1"></span>
   <button class="btn" id="labels" style="font-size:14px;padding:7px 11px">Print labels</button>
@@ -32,6 +42,15 @@
     <select id="group"><option value="location">by location</option><option value="tag">by tag</option><option value="none">flat A–Z</option></select>
   </label>
 </div>
+<form class="newform" id="newform" hidden>
+  <input type="text" id="newname" placeholder="What is it? e.g. M5 bolts 20 mm" autocomplete="off">
+  <label class="muted" for="newqty">how many</label>
+  <input type="number" id="newqty" min="0" value="1" inputmode="numeric">
+  <button class="btn primary" type="submit">Add</button>
+  <button class="btn" type="button" id="closenew">done</button>
+  <p class="err" id="newerr" hidden></p>
+  <ul class="added" id="added"></ul>
+</form>
 <div id="list"><p class="muted">loading…</p></div>
 
 <script src="/parse.js"></script>
@@ -110,6 +129,32 @@ function flags(rows) {
 
 // Print labels for exactly what is on screen, so a filter doubles as a selection.
 $('#labels').onclick = () => { location.href = '/labels?ids=' + shownIds.join(','); };
+
+// Adding items, meant for typing a shelf's worth in one go: the form stays
+// open, the field keeps focus, and each new one is linked as it appears.
+const form = $('#newform');
+$('#newitem').onclick = () => { form.hidden = !form.hidden; if (!form.hidden) $('#newname').focus(); };
+$('#closenew').onclick = () => { form.hidden = true; };
+form.onsubmit = async e => {
+  e.preventDefault();
+  const name = $('#newname').value.trim();
+  $('#newerr').hidden = true;
+  if (!name) { $('#newname').value = ''; $('#newname').focus(); return; }
+  try {
+    const r = await fetch('/api/items', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name, quantity: $('#newqty').value }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'could not add');
+    $('#added').insertAdjacentHTML('afterbegin',
+      `<li><a href="/i/${d.item.id}">[${d.item.id}]</a> ${esc(d.item.name)} · <a href="/i/${d.item.id}">open</a> · <a href="/sticker?id=${d.item.id}">sticker</a></li>`);
+    $('#newname').value = '';
+    $('#newname').focus();
+    await Nerva.refreshCatalogue();
+    render();
+  } catch (err) { $('#newerr').textContent = err.message; $('#newerr').hidden = false; }
+};
 
 Nerva.wireAdd($('#list'));
 </script>

@@ -126,3 +126,38 @@ test('a numbered one can live somewhere of its own, or wherever the product does
   assert.equal((await call('GET', `/api/places/${a}`)).body.items.length, 2);
   close();
 });
+
+test('items can be created and their typed fields corrected', async () => {
+  const store = makeStore([]);
+  const app = require('express')();
+  app.use(require('../routes/items')(store));
+  const server = app.listen(0);
+  const base = `http://localhost:${server.address().port}`;
+  const call = async (method, url, body) => {
+    const r = await fetch(base + url, body === undefined ? { method }
+      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+
+  assert.equal((await call('POST', '/api/items', { name: '  ' })).status, 400);
+  const made = await call('POST', '/api/items', { name: '  M5 bolts 20 mm ', quantity: '200', tags: 'Bolt, screw ,,' });
+  const id = made.body.item.id;
+  assert.equal(made.body.item.name, 'M5 bolts 20 mm');
+  assert.equal(made.body.item.quantity, 200);
+  assert.deepEqual(made.body.item.tags, ['bolt', 'screw']);
+
+  // editing touches only what was sent, and never the things doing sets
+  store.items.get(id).shelf = 'cab003-4';
+  store.items.get(id).tracked = true;
+  store.items.get(id).units = [{ n: 1 }];
+  await call('PUT', `/api/items/${id}`, { description: 'Stainless' });
+  assert.equal(store.items.get(id).description, 'Stainless');
+  assert.equal(store.items.get(id).name, 'M5 bolts 20 mm');
+  assert.equal(store.items.get(id).shelf, 'cab003-4');
+  assert.deepEqual(store.items.get(id).units, [{ n: 1 }]);
+
+  assert.equal((await call('PUT', `/api/items/${id}`, { name: '' })).status, 400);
+  assert.equal((await call('PUT', `/api/items/${id}`, {})).status, 400);
+  assert.equal((await call('PUT', '/api/items/zzzzzz', { name: 'x' })).status, 404);
+  server.close();
+});

@@ -41,6 +41,10 @@ with their QR codes, are on the Settings page. The public one is unauthenticated
 and changes on every run, so treat it as a test address and do not print labels
 from it.
 
+Items are added on the Items page: a name, how many, and it is in. Everything
+else about an item comes from doing something to it, so counting sets the
+quantity, filing sets the place, and photographing sets the picture.
+
 ## Status
 
 Working today: instant offline search, the Checkout and Items pages, item pages, the text list with the `find` verb, QR codes and printable labels, item and location photos taken from a phone, and deleting items.

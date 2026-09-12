@@ -51,6 +51,10 @@
   .log b { color:var(--fg); font-variant-numeric:tabular-nums; font-weight:600; }
   select { width:100%; font-size:16px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
   .badge { font-size:15px; color:var(--muted); font-weight:normal; }
+  details.edit { margin:10px 0; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  details.edit summary { cursor:pointer; color:var(--accent); font-size:14px; }
+  details.edit label { display:block; margin-top:10px; font-size:13px; color:var(--muted); }
+  details.edit input { width:100%; font-size:16px; padding:9px 11px; margin-top:3px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
   ul { padding-left:20px; margin:4px 0; }
   .muted { color:var(--muted); }
   .err { color:var(--bad); font-size:14px; margin-top:8px; }
@@ -173,6 +177,12 @@ function view(i) {
     <h1>${esc(i.name)}${unitPart} ${i.kind === 'set' ? '<span class="muted">(set)</span>' : ''}</h1>
     <div class="id">${i.unitId || i.id}${i.unit ? ` · <a href="/i/${i.productId}?u=${i.unit.n}">one of ${i.units.length}</a>` : ''}</div>
     ${i.description ? `<p>${esc(i.description)}</p>` : ''}
+    ${i.unit ? '' : `<details class="edit"><summary>edit name, description and tags</summary>
+      <label>Name<input type="text" id="e-name" value="${esc(i.name)}"></label>
+      <label>Description<input type="text" id="e-description" value="${esc(i.description || '')}"></label>
+      <label>Tags<input type="text" id="e-tags" value="${esc((i.tags || []).join(', '))}" placeholder="comma separated, the words people would search for"></label>
+      <div class="btnrow"><button class="btn primary" id="save">Save</button></div>
+    </details>`}
     ${headline(i)}
     ${photos(i)}
     ${i.tags?.length ? `<div>${i.tags.map(t => `<span class="tag">${esc(t)}</span> `).join('')}</div>` : ''}
@@ -312,6 +322,15 @@ function wire() {
     this.disabled = true;
     try { await call('PUT', `/api/items/${item.id}/tracked`, { tracked: false }); await load(); }
     catch (e) { this.disabled = false; fail('Not changed: ' + e.message); }
+  };
+
+  const save = document.getElementById('save');
+  if (save) save.onclick = async function () {
+    this.disabled = true;
+    const body = {};
+    for (const f of ['name', 'description', 'tags']) body[f] = document.getElementById('e-' + f).value;
+    try { await call('PUT', `/api/items/${item.id}`, body); await load(); flash('saved'); }
+    catch (e) { this.disabled = false; fail('Not saved: ' + e.message); }
   };
 
   const savecount = document.getElementById('savecount');

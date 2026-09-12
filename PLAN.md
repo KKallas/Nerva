@@ -219,7 +219,7 @@ One app page does nearly everything; the rest are small.
 | URL                  | Who   | What                                                        |
 |----------------------|-------|-------------------------------------------------------------|
 | `/` (Checkout)       | all   | **Search + list.** Search box on top with instant local results (location, photo, quantity, **+**). Below it the list: textarea, scan button (camera overlay, each scan appends a line), verb buttons `find out in count new`, results under each line after filing. Text lines that match several items show the matches as buttons; tapping one swaps the line for the exact id. |
-| `/items`             | all   | **The catalogue.** Everything, grouped by location (or tag, or flat), filter chips for sets / low stock / no photo / no location, and a summary of what still needs a location or a photo. This is where gaps in the data are visible, so it is also where they get fixed. Editing and creating land here in steps 2 and 5. |
+| `/items`             | all   | **The catalogue.** Everything, grouped by location (or tag, or flat), filter chips for sets / low stock / no photo / no location, and a summary of what still needs a location or a photo. This is where gaps in the data are visible, so it is also where they get fixed. **New item** adds one from a name and a quantity, staying open so a shelf's worth can be typed in one go. |
 | `/locations`         | all   | **Places.** Locations (a cabinet, a bench) each holding shelves (a drawer, a level). Both take a photo and a QR code. Rename a place and the text on every item filed there follows. |
 | `/l/<id>`            | all   | A location or a shelf. Its photo, its QR, its shelves, and everything filed there. **Shelf QR codes point here**, so scanning a drawer lists what belongs in it. |
 | `/i/<id>`            | all   | Item page: photos, location, quantity, who has it, QR, "add to list", history. One-tap fixes for everyone: retake location photo, set count, add tag. **QR codes point here**, so a phone camera app lands on it and one tap adds it to the list. |
@@ -243,7 +243,9 @@ POST   /api/file?verb=out               body: text/plain (the list) or JSON { te
                                         → { lines: [ { line, ok, message, item? } ] }
 GET    /api/items?q=                    search
 GET    /api/items/:id                   a product, or one unit of it ("338va6-2")
-PUT    /api/items/:id                   admin
+POST   /api/items                       { name, quantity } create one
+PUT    /api/items/:id                   { name, description, tags } only; never
+                                        touches units, shelves, photos or counts
 PUT    /api/items/:id/tracked           { tracked } switch between quantity and numbered units
 POST   /api/items/:id/units             { count } add numbered units
 DELETE /api/items/:id/units/:n          retire one (refused while it is out)
@@ -368,7 +370,7 @@ Conventions that make LLM edits safe:
 2. **Scan + QR + labels** – ✅ QR codes and the `/labels` print sheet for items, units and places; photos with client-side resize and finger-painted highlighting; numbered units; counting with history; locations and shelves. Still to do: the camera overlay that appends scans to the list, and editing an item's name, description and tags.
 3. **Identity + out/in** – `/hello` cookie, `users.json`, `POST /api/file` for `out` and `in`, `/loans`. (`count` already works.)
 4. **Sets** – contents editor, `- part xN` lines on `in`, `missing`, `/incomplete`, `fix`.
-5. **new + admin** – `new` verb creating items from names and opening `/labels`, `/admin`, export zip, CSV import.
+5. **new + admin** – ✅ creating items on the Items page, and correcting their name, description and tags. Still to do: the `new` verb so a whole list of names becomes items at once, `/admin`, export zip, CSV import.
 6. **Ops** – Dockerfile, Caddyfile, `bin/nerva` CLI, overdue list.
 
 Optional later, only if wanted:

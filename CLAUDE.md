@@ -14,6 +14,7 @@ Rules that keep this project simple:
 - Dependencies: express, dotenv, qrcode. Ask before adding anything else.
 - After any write from the browser, call `Nerva.refreshCatalogue()`, or the cached catalogue goes stale.
 - Code layout is PLAN.md section 7: one concern per file, under ~150 lines. A verb is one file in `verbs/` with the signature `async (lines, who, store) => results`, discovered by filename. Tests in `test/` call verbs directly with an in-memory store.
+- `PUT /api/items/:id` patches only name, description and tags. Quantity comes from counting, location from filing, photos from uploading, units from numbering. Keep it that way: one field, one deliberate action.
 - Adoption rule: the correct action must be the shortest action. If a user can notice wrong data on a screen, that screen needs a one-tap fix that does not require admin. Never add a required field, approval step or lock.
 - Photo layout on an item page: a counted product shows the item and the place side by side; a numbered product shows one wide photo of the place only; one numbered unit shows itself beside the shared place.
 - Photos: `type=item` on a unit id belongs to that unit (`<id>-<n>-item.jpg`, flagged on the unit); `type=loc` always belongs to the product (`<id>-loc.jpg`), because every unit lives on the same shelf. The server enforces this, so a caller cannot file them wrongly.
