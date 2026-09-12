@@ -113,3 +113,17 @@ test('a numbered one photographs itself, but shares the location photo', async (
   assert.ok(has('scope1-loc.jpg'));
   server.close();
 });
+
+test('a list shows the product photo, or the first numbered one that has one', () => {
+  const store = makeStore([
+    { id: 'bolts1', name: 'Bolts', quantity: 5, photo: true },
+    { id: 'scope1', name: 'Scope', tracked: true, units: [{ n: 1 }, { n: 2, photo: true }, { n: 3, photo: true }] },
+    { id: 'both01', name: 'Both', tracked: true, photo: true, units: [{ n: 1, photo: true }] },
+    { id: 'none01', name: 'None', quantity: 1 },
+  ]);
+  const by = Object.fromEntries(store.catalogue().map(i => [i.id, i.previewId]));
+  assert.equal(by.bolts1, 'bolts1');
+  assert.equal(by.scope1, 'scope1-2');   // #1 has none, so the first that does
+  assert.equal(by.both01, 'both01');     // the product's own wins
+  assert.equal(by.none01, null);
+});

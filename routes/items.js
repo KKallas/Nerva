@@ -34,6 +34,7 @@ module.exports = function itemRoutes(store) {
     res.json({
       ...item, contents, openLoans, unit, unitId: unit ? id : null, productId: item.id,
       productPhoto: !!item.photo,
+      previewId: store.previewId(item),
       photo: unit ? !!unit.photo : !!item.photo,
       // where this one lives, and whether that is its own or the product's
       shelf: place.shelf, location: place.location, placeOwn: place.own,

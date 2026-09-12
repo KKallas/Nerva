@@ -10,14 +10,16 @@
   h1 { font-size:20px; margin:4px 0 10px; }
   .loc { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
   .head { display:flex; gap:12px; align-items:center; }
-  .head .thumb { width:64px; height:64px; }
+  .head .thumb { width:84px; height:84px; border-radius:10px; }
+  .head .thumb.empty { border:1px dashed var(--line); background:var(--bg); color:var(--muted); font-size:26px; cursor:pointer; }
   .head .t { flex:1; min-width:0; }
   .head .t a { font-weight:600; font-size:17px; text-decoration:none; color:inherit; }
   .head .t div { color:var(--muted); font-size:13px; }
   .shelves { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
   .shelf { display:flex; gap:10px; align-items:center; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
-  .shelf img, .shelf .noimg { width:40px; height:40px; border-radius:6px; object-fit:cover; background:var(--line); flex:none; }
-  .shelf a { flex:1; min-width:0; text-decoration:none; color:inherit; font-weight:500; }
+  .shelf img, .shelf .noimg { width:52px; height:52px; border-radius:8px; object-fit:cover; background:var(--line); flex:none; display:block; }
+  .shelf .noimg { border:1px dashed var(--line); }
+  .shelf a.go { flex:1; min-width:0; display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; font-weight:500; }
   .shelf small { color:var(--muted); font-weight:normal; }
   .shelf button { font:inherit; font-size:13px; border:0; background:none; color:var(--muted); cursor:pointer; padding:4px; }
   .newrow { display:flex; gap:8px; margin-top:10px; }
@@ -53,21 +55,25 @@ async function load() {
   wire();
 }
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+
 function card(l) {
   return `<div class="loc" data-loc="${l.id}">
     <div class="head">
       ${l.photo ? `<img class="thumb" src="/photos/place-${l.id}.jpg?v=${Date.now()}" alt="">`
-                : `<button class="thumb" data-photo="${l.id}" title="add a photo" style="border:1px dashed var(--line);color:var(--muted);cursor:pointer">+</button>`}
+                : `<button class="thumb empty" data-photo="${l.id}" title="photograph this place">+</button>`}
       <div class="t">
         <a href="/l/${l.id}">${esc(l.name)}</a>
-        <div>${l.shelves.length} shelves · ${l.items} items</div>
+        <div>${plural(l.shelves.length, 'shelf', 'shelves')} · ${plural(l.items, 'item')}</div>
       </div>
       <button class="btn" data-rename="${l.id}" style="font-size:13px;padding:7px 10px">rename</button>
     </div>
     <div class="shelves">
       ${l.shelves.map(s => `<div class="shelf">
-        ${s.photo ? `<img src="/photos/place-${s.id}.jpg?v=${Date.now()}" alt="">` : '<div class="noimg"></div>'}
-        <a href="/l/${s.id}">${esc(s.name)} <small>· ${s.items} items</small></a>
+        <a class="go" href="/l/${s.id}">
+          ${s.photo ? `<img src="/photos/place-${s.id}.jpg?v=${Date.now()}" alt="">` : '<div class="noimg"></div>'}
+          <span>${esc(s.name)} <small>· ${plural(s.items, 'item')}</small></span>
+        </a>
         <button data-dropshelf="${l.id}:${s.n}" title="remove">✕</button>
       </div>`).join('')}
     </div>

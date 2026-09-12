@@ -44,8 +44,9 @@ window.Nerva = (function () {
     const qty = `<span class="qty">${i.quantity}</span>${o.hideLocation ? ' in stock' : ''}`;
     const bits = [o.hideLocation ? '' : (esc(i.location) || '<i>no location</i>'), qty, o.extra]
       .filter(Boolean).join(' · ');
+    // the thing itself, not where it lives: a list is for recognising things
     return `<a class="row" href="/i/${i.id}">
-      ${i.locationPhoto ? `<img class="thumb" src="/photos/${i.id}-loc.jpg" alt="" loading="lazy">` : '<div class="thumb"></div>'}
+      ${i.previewId ? `<img class="thumb" src="/photos/${i.previewId}-item.jpg" alt="" loading="lazy">` : '<div class="thumb"></div>'}
       <div class="main">
         <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}${i.tracked ? ' <span class="tag">numbered</span>' : ''}</div>
         <div class="where">${bits}</div>
