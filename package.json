@@ -1,0 +1,19 @@
+{
+  "name": "nerva",
+  "version": "0.1.0",
+  "description": "Ultra-simple stock management for a robotics lab",
+  "license": "MIT",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "seed": "node bin/seed.js"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  }
+}

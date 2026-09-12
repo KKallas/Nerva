@@ -265,8 +265,8 @@ Conventions that make LLM edits safe:
 
 ## 9. Build order (each step is a shippable increment, sized for one LLM session)
 
-1. **Lookup** – Express, JSON store with atomic writes, `/api/catalogue.json`, `/` with instant local search (location + photo + quantity), item page, `manifest.json` + service worker. No identity needed yet. Usable on day one for "which shelf".
-1b. **List + find** – the textarea, shared parser in `lib/parse.js`, `verbs/find.js`, `POST /api/file`.
+1. ✅ **Lookup** – Express, JSON store with atomic writes, `/api/catalogue.json`, `/` with instant local search (location + photo + quantity), item page, `manifest.json` + service worker. No identity needed yet. Usable on day one for "which shelf".
+1b. ✅ **List + find** – the textarea, shared parser in `lib/parse.js`, `verbs/find.js`, `POST /api/file`.
 2. **Scan + QR + labels** – camera overlay appending to the list, `/api/items/:id/qr.png`, `/labels` print sheet, photos with client-side resize, `/i/<id>/edit`.
 3. **Identity + out/in/count** – `/hello` cookie, `users.json`, `POST /api/file` for `out`, `in`, `count`, `/loans`.
 4. **Sets** – contents editor, `- part xN` lines on `in`, `missing`, `/incomplete`, `fix`.

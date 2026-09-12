@@ -12,17 +12,29 @@ Need M5 bolts? Open Nerva, type `m5`, see the drawer and a photo of it. Beyond l
 
 Read [PLAN.md](PLAN.md) for the list format, design, data layout, pages, API and build order.
 
-## Quick start (once implemented)
+## Quick start
 
 ```sh
-cp .env.example .env      # set SESSION_SECRET and ADMIN_EMAILS
+cp .env.example .env      # defaults are fine for local testing
 npm install
+npm run seed              # 33 sample items and 3 soldering sets, only if data/ is empty
 npm start                 # http://localhost:3000
+npm test                  # unit tests for parser, search, store, verbs
 ```
+
+Open it on a phone on the same Wi-Fi with `http://<your-ip>:3000`. Camera scanning will need HTTPS (step 2, Caddyfile).
 
 ## Status
 
-Planning. Implementation follows the build order in PLAN.md, step 1 first.
+Build step 1 done: instant offline search, item pages, the text list with the `find` verb, `POST /api/file`, installable PWA shell, seed data.
+
+Try from a terminal:
+
+```sh
+printf 'multimeter\nm5 bolt\n' | curl -s --data-binary @- 'http://localhost:3000/api/file?verb=find'
+```
+
+Next: step 2 in [PLAN.md](PLAN.md) (camera scan, QR codes, labels, photos).
 
 ## License
 
