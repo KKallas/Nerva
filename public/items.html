@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Items · Nerva</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg">
+<meta name="theme-color" content="#1f2937">
+<link rel="stylesheet" href="/app.css">
+<style>
+  .bar { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .chips { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; margin-top:8px; }
+  .chips button { flex:none; font:inherit; font-size:14px; padding:7px 12px; border-radius:999px; border:1px solid var(--line); background:var(--card); color:var(--muted); cursor:pointer; white-space:nowrap; }
+  .chips button[aria-pressed=true] { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .chips button .n { font-variant-numeric:tabular-nums; opacity:.7; margin-left:4px; }
+  h2.group { font-size:14px; color:var(--muted); margin:18px 0 4px; text-transform:uppercase; letter-spacing:.04em; display:flex; justify-content:space-between; }
+  .flags { font-size:12px; }
+  .flags b { color:var(--warn); font-weight:600; }
+</style>
+</head>
+<body>
+<header class="sticky">
+  <input type="search" id="q" placeholder="Filter items…" autocomplete="off">
+  <div class="chips" id="chips"></div>
+</header>
+<div class="bar">
+  <span class="muted" id="summary"></span>
+  <span style="flex:1"></span>
+  <label class="muted">group
+    <select id="group"><option value="location">by location</option><option value="tag">by tag</option><option value="none">flat A–Z</option></select>
+  </label>
+</div>
+<div id="list"><p class="muted">loading…</p></div>
+
+<script src="/parse.js"></script>
+<script src="/search.js"></script>
+<script src="/app.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = Nerva.esc;
+Nerva.nav('/items');
+
+const LOW = 2;
+const FILTERS = {
+  all:    { label: 'all',          test: () => true },
+  set:    { label: 'sets',         test: i => i.kind === 'set' },
+  low:    { label: 'low stock',    test: i => (i.quantity ?? 0) <= LOW },
+  nophoto:{ label: 'no photo',     test: i => !i.photo },
+  noloc:  { label: 'no location',  test: i => !i.location },
+};
+let active = 'all';
+
+$('#q').addEventListener('input', render);
+$('#group').addEventListener('change', render);
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  active = b.dataset.f; render();
+});
+
+Nerva.loadCatalogue((items, how) => {
+  Nerva.status(how === 'empty' ? 'offline, no catalogue yet' : `${items.length} items${how === 'cached' ? ' (cached)' : how === 'offline' ? ' (offline)' : ''}`);
+  render();
+});
+
+function render() {
+  const all = Nerva.catalogue;
+  const q = $('#q').value.trim();
+  const base = q ? NervaSearch.search(all, q, 2000) : all;
+
+  $('#chips').innerHTML = Object.entries(FILTERS).map(([k, f]) =>
+    `<button data-f="${k}" aria-pressed="${k === active}">${f.label}<span class="n">${base.filter(f.test).length}</span></button>`).join('');
+
+  const shown = base.filter(FILTERS[active].test);
+  const noLoc = all.filter(i => !i.location).length;
+  const noPic = all.filter(i => !i.photo).length;
+  const gaps = [noLoc && `<span class="warn">${noLoc} without a location</span>`, noPic && `${noPic} without a photo`].filter(Boolean);
+  $('#summary').innerHTML = `${shown.length} of ${all.length} shown` + (gaps.length ? ' · ' + gaps.join(' · ') : ' · complete');
+
+  const box = $('#list');
+  if (!shown.length) { box.innerHTML = '<p class="muted">Nothing here.</p>'; return; }
+
+  const mode = $('#group').value;
+  const groups = new Map();
+  for (const i of shown) {
+    const keys = mode === 'location' ? [i.location || 'No location set']
+      : mode === 'tag' ? (i.tags && i.tags.length ? i.tags : ['untagged'])
+      : ['']; // flat
+    for (const k of keys) { if (!groups.has(k)) groups.set(k, []); groups.get(k).push(i); }
+  }
+  const order = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+  box.innerHTML = order.map(k => {
+    const rows = groups.get(k).sort((a, b) => a.name.localeCompare(b.name));
+    const head = mode === 'none' ? '' :
+      `<h2 class="group"><span>${esc(k)}</span><span class="flags">${rows.length} ${flags(rows)}</span></h2>`;
+    return head + `<div class="rows">${rows.map(i => Nerva.itemRow(i, { extra: extra(i), hideLocation: mode === 'location' })).join('')}</div>`;
+  }).join('');
+}
+
+// A missing location is the one gap that breaks a lookup, so it is the only
+// thing shouted on a row. Missing photos are a chip and a summary count.
+function extra(i) { return i.location ? '' : '<b class="warn">no location</b>'; }
+function flags(rows) {
+  const n = rows.filter(i => !i.location).length;
+  return n ? `· <b>${n} without a location</b>` : '';
+}
+
+Nerva.wireAdd($('#list'));
+</script>
+</body>
+</html>

@@ -4,13 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nerva</title>
+<link rel="stylesheet" href="/app.css">
 <link rel="icon" href="/icon.svg">
 <style>
-  :root { --bg:#f6f7f9; --fg:#111827; --muted:#6b7280; --line:#e5e7eb; --card:#fff; --accent:#2563eb; --warn:#b45309; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111827; --fg:#f3f4f6; --muted:#9ca3af; --line:#374151; --card:#1f2937; --accent:#60a5fa; --warn:#fbbf24; } }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,-apple-system,sans-serif; padding:0 16px 40px; max-width:720px; margin-inline:auto; }
-  nav { padding:12px 0; } nav a { color:var(--accent); text-decoration:none; }
   h1 { font-size:22px; margin:0 0 4px; }
   .id { font-family:ui-monospace,Menlo,monospace; color:var(--muted); font-size:14px; }
   .big { font-size:18px; margin:12px 0; }
@@ -30,10 +26,12 @@
 </style>
 </head>
 <body>
-<nav><a href="/">← search</a></nav>
 <div id="app"><p class="muted">loading…</p></div>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
 <script>
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = Nerva.esc;
+Nerva.nav('/items');
 const id = location.pathname.split('/').pop().toLowerCase();
 fetch('/api/items/' + id).then(async r => {
   const app = document.getElementById('app');
@@ -55,12 +53,7 @@ fetch('/api/items/' + id).then(async r => {
     ${i.openLoans?.length ? `<div class="card"><h2>Out with</h2><ul>${i.openLoans.map(l => `<li>${esc(l.who)} × ${l.qty} since ${l.borrowedAt.slice(0,10)}</li>`).join('')}</ul></div>` : ''}
     <button class="primary" id="add">+ add to my list</button>
     <p class="muted">Updated ${i.updatedAt ? i.updatedAt.slice(0,10) : '—'}</p>`;
-  document.getElementById('add').onclick = () => {
-    let list = ''; try { list = localStorage.getItem('nerva.list') || ''; } catch {}
-    list = (list.trimEnd() ? list.trimEnd() + '\n' : '') + i.id + '\n';
-    try { localStorage.setItem('nerva.list', list); } catch {}
-    location.href = '/';
-  };
+  document.getElementById('add').onclick = () => { Nerva.addLine(i.id); location.href = '/'; };
 });
 </script>
 </body>

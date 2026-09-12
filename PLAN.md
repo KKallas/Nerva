@@ -167,10 +167,11 @@ One app page does nearly everything; the rest are small.
 
 | URL                  | Who   | What                                                        |
 |----------------------|-------|-------------------------------------------------------------|
-| `/`                  | all   | **Search + list.** Search box on top with instant local results (location, photo, quantity, **+**). Below it the list: textarea, scan button (camera overlay, each scan appends a line), verb buttons `find out in count new`, results under each line after filing. |
+| `/` (Checkout)       | all   | **Search + list.** Search box on top with instant local results (location, photo, quantity, **+**). Below it the list: textarea, scan button (camera overlay, each scan appends a line), verb buttons `find out in count new`, results under each line after filing. Text lines that match several items show the matches as buttons; tapping one swaps the line for the exact id. |
+| `/items`             | all   | **The catalogue.** Everything, grouped by location (or tag, or flat), filter chips for sets / low stock / no photo / no location, and a summary of what still needs a location or a photo. This is where gaps in the data are visible, so it is also where they get fixed. Editing and creating land here in steps 2 and 5. |
+| `/locations`         | all   | **Later.** Locations become real records: a name, a photo of the shelf, and what belongs there. Until then a location is just text on an item and this tab is disabled. |
 | `/i/<id>`            | all   | Item page: photos, location, quantity, who has it, QR, "add to list", history. One-tap fixes for everyone: retake location photo, set count, add tag. **QR codes point here**, so a phone camera app lands on it and one tap adds it to the list. |
 | `/i/<id>/edit`       | admin | Edit fields, contents (for sets), take / upload photos (`<input capture>`) |
-| `/search?q=`         | all   | Text search, results with location thumbnail, "add to list" |
 | `/loans`             | all   | My open loans (everyone), all open loans + overdue (admin)   |
 | `/incomplete`        | admin | Sets with missing parts, `fix` button                       |
 | `/labels?ids=a,b,c`  | all   | Printable A4 sheet of QR labels (name + id + QR)             |
@@ -238,8 +239,11 @@ routes/items.js        item CRUD, photos, qr
 routes/file.js         POST /api/file → picks verbs/<verb>.js by name
 routes/loans.js
 routes/admin.js
-public/index.html      search + list page (inline JS, no imports)
-public/item.html       item page
+public/app.css         every shared style, including the tab bar
+public/app.js          shared browser helpers: cached catalogue, the list, nav, item rows
+public/index.html      checkout: search + list (page-specific JS inline, no imports)
+public/items.html      the catalogue: grouping, filter chips, data gaps
+public/item.html       one item
 public/labels.html     print sheet
 public/parse.js        symlink/copy of lib/parse.js
 public/sw.js           service worker

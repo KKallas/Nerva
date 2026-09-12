@@ -12,6 +12,7 @@ Rules that keep this project simple:
 - Photos are resized in the browser before upload. The server just saves bytes.
 - Code layout is PLAN.md section 7: one concern per file, under ~150 lines. A verb is one file in `verbs/` with the signature `async (lines, who, store) => results`, discovered by filename. Tests in `test/` call verbs directly with an in-memory store.
 - Adoption rule: the correct action must be the shortest action. If a user can notice wrong data on a screen, that screen needs a one-tap fix that does not require admin. Never add a required field, approval step or lock.
+- Pages are Checkout (`/`), Items (`/items`) and later Locations (`/locations`). Shared styles live in `public/app.css`, shared browser helpers in `public/app.js` (cached catalogue, the list, nav, item rows). A page adds only what is its own.
 - `/` is first of all a lookup tool: search box on top, instant, local, offline. Never make search wait on the server.
 - Mobile first. `/` must work one-handed on a phone at the shelf, offline except for pressing a verb.
 - Follow the build order in PLAN.md section 9. Finish a step fully (page + API + test) before starting the next.

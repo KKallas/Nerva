@@ -17,6 +17,7 @@ app.get('/search.js', (req, res) => res.sendFile(path.join(__dirname, 'lib', 'se
 app.use(require('./routes/items')(store));
 app.use(require('./routes/file')(store));
 
+app.get('/items', (req, res) => res.sendFile(path.join(__dirname, 'public', 'items.html')));
 app.get('/i/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'item.html')));
 app.use('/photos', express.static(store.dirs.photos, { maxAge: '1h' }));
 app.use(express.static(path.join(__dirname, 'public')));

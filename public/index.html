@@ -3,30 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Nerva</title>
+<title>Checkout · Nerva</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon.svg">
 <link rel="apple-touch-icon" href="/icon.svg">
 <meta name="theme-color" content="#1f2937">
+<link rel="stylesheet" href="/app.css">
 <style>
-  :root { --bg:#f6f7f9; --fg:#111827; --muted:#6b7280; --line:#e5e7eb; --card:#fff; --accent:#2563eb; --ok:#15803d; --bad:#b91c1c; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111827; --fg:#f3f4f6; --muted:#9ca3af; --line:#374151; --card:#1f2937; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; } }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,-apple-system,sans-serif; padding: 0 16px 40px; }
-  header { position: sticky; top:0; background:var(--bg); padding: 12px 0 8px; z-index:2; }
-  h1 { font-size: 18px; margin:0 0 8px; display:flex; justify-content:space-between; align-items:baseline; }
-  h1 small { color:var(--muted); font-weight:normal; font-size:12px; }
-  input[type=search] { width:100%; font-size:18px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--fg); }
-  .results { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
-  .row { display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px; text-decoration:none; color:inherit; }
-  .thumb { width:56px; height:56px; border-radius:8px; background:var(--line); object-fit:cover; flex:none; }
-  .row .main { flex:1; min-width:0; }
-  .row .name { font-weight:600; }
-  .row .where { color:var(--muted); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .qty { font-variant-numeric: tabular-nums; color:var(--muted); }
-  .add { flex:none; width:44px; height:44px; border-radius:22px; border:1px solid var(--line); background:var(--card); color:var(--accent); font-size:24px; line-height:1; cursor:pointer; }
-  .muted { color:var(--muted); font-size:14px; }
-  section.list { margin-top:24px; }
+  section.list { margin-top:22px; }
   section.list h2 { font-size:15px; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
   textarea { width:100%; min-height:140px; font:15px/1.5 ui-monospace,Menlo,monospace; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--fg); resize:vertical; }
   .verbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
@@ -36,9 +20,9 @@
   .out { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
   .out .r { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--ok); border-radius:8px; padding:8px 10px; font-size:14px; white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; }
   .out .r.bad { border-left-color:var(--bad); }
+  .out .r.swapped { border-left-color:var(--accent); }
   .out .r b { display:block; font-family:system-ui,sans-serif; }
   .out .r a { color:var(--accent); text-decoration:none; }
-  .out .r.swapped { border-left-color:var(--accent); }
   .opts { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
   .opt { display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; font-family:system-ui,sans-serif; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); cursor:pointer; }
   .opt:active { background:var(--line); }
@@ -48,11 +32,10 @@
 </style>
 </head>
 <body>
-<header>
-  <h1>Nerva <small id="status">loading…</small></h1>
+<header class="sticky">
   <input type="search" id="q" placeholder="What do you need? e.g. m5 bolt" autocomplete="off" autofocus>
 </header>
-<div class="results" id="results"><p class="muted">Type to search. Results come from a local copy of the catalogue, so this works offline.</p></div>
+<div class="rows" id="results"><p class="muted">Search, tap <b>+</b> to put things on your list, then file the list with a verb below.</p></div>
 
 <section class="list">
   <h2>List</h2>
@@ -63,7 +46,6 @@
     <button data-verb="out" disabled title="step 3">out</button>
     <button data-verb="in" disabled title="step 3">in</button>
     <button data-verb="count" disabled title="step 3">count</button>
-    <button data-verb="new" disabled title="step 5">new</button>
     <button id="clear">clear</button>
   </div>
   <div class="out" id="out"></div>
@@ -71,58 +53,35 @@
 
 <script src="/parse.js"></script>
 <script src="/search.js"></script>
+<script src="/app.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let catalogue = [];
+const esc = Nerva.esc;
+Nerva.nav('/');
 
-// ---- catalogue: render from cache instantly, refresh in background ----
-try { catalogue = JSON.parse(localStorage.getItem('nerva.catalogue') || '[]'); } catch {}
-setStatus(catalogue.length ? `${catalogue.length} items (cached)` : '');
-fetch('/api/catalogue.json').then(r => r.json()).then(d => {
-  catalogue = d.items;
-  try { localStorage.setItem('nerva.catalogue', JSON.stringify(catalogue)); } catch {}
-  setStatus(`${catalogue.length} items`);
-  render();
-}).catch(() => setStatus(catalogue.length ? `${catalogue.length} items (offline)` : 'offline, no catalogue yet'));
-
-function setStatus(t) { $('#status').textContent = t; }
+Nerva.loadCatalogue((items, how) => {
+  Nerva.status(how === 'empty' ? 'offline, no catalogue yet' : `${items.length} items${how === 'cached' ? ' (cached)' : how === 'offline' ? ' (offline)' : ''}`);
+  if (how !== 'cached') render();
+});
 
 // ---- search ----
 $('#q').addEventListener('input', render);
 function render() {
   const q = $('#q').value.trim();
   const box = $('#results');
-  if (!q) { box.innerHTML = '<p class="muted">Type to search. Results come from a local copy of the catalogue, so this works offline.</p>'; return; }
-  const hits = NervaSearch.search(catalogue, q, 50);
-  if (!hits.length) { box.innerHTML = `<p class="muted">Nothing matches "${esc(q)}".</p>`; return; }
-  box.innerHTML = hits.map(i => `
-    <a class="row" href="/i/${i.id}">
-      ${i.locationPhoto ? `<img class="thumb" src="/photos/${i.id}-loc.jpg" alt="" loading="lazy">` : '<div class="thumb"></div>'}
-      <div class="main">
-        <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="muted">set</span>' : ''}</div>
-        <div class="where">${esc(i.location) || '<i>no location</i>'} · <span class="qty">${i.quantity}</span></div>
-      </div>
-      <button class="add" data-id="${i.id}" title="add to list" aria-label="add to list">+</button>
-    </a>`).join('');
+  if (!q) { box.innerHTML = '<p class="muted">Search, tap <b>+</b> to put things on your list, then file the list with a verb below.</p>'; return; }
+  const hits = NervaSearch.search(Nerva.catalogue, q, 50);
+  box.innerHTML = hits.length ? hits.map(i => Nerva.itemRow(i)).join('')
+    : `<p class="muted">Nothing matches "${esc(q)}". <a href="/items">Browse all items</a>.</p>`;
 }
-$('#results').addEventListener('click', e => {
-  const b = e.target.closest('.add');
-  if (!b) return;
-  e.preventDefault();
-  addLine(b.dataset.id);
-  b.textContent = '✓'; setTimeout(() => b.textContent = '+', 700);
-});
+Nerva.wireAdd($('#results'));
 
 // ---- the list ----
 const ta = $('#list');
-try { ta.value = localStorage.getItem('nerva.list') || ''; } catch {}
-ta.addEventListener('input', () => { try { localStorage.setItem('nerva.list', ta.value); } catch {} });
-function addLine(text) {
-  ta.value = (ta.value.trimEnd() ? ta.value.trimEnd() + '\n' : '') + text + '\n';
-  ta.dispatchEvent(new Event('input'));
-}
-$('#clear').onclick = () => { ta.value = ''; ta.dispatchEvent(new Event('input')); $('#out').innerHTML = ''; };
+ta.value = Nerva.listText();
+ta.addEventListener('input', () => Nerva.setList(ta.value));
+window.addEventListener('nerva:list', () => { if (ta.value !== Nerva.listText()) ta.value = Nerva.listText(); });
+$('#clear').onclick = () => { ta.value = ''; Nerva.setList(''); $('#out').innerHTML = ''; };
 
 document.querySelectorAll('[data-verb]').forEach(btn => btn.onclick = () => file(btn.dataset.verb));
 async function file(verb) {
@@ -134,7 +93,7 @@ async function file(verb) {
     const d = await r.json();
     if (!r.ok) { out.innerHTML = `<div class="r bad">${esc(d.error)}</div>`; return; }
     out.innerHTML = d.lines.map(renderResult).join('') || '<p class="muted">Nothing to do.</p>';
-  } catch (e) { out.innerHTML = `<div class="r bad">Could not reach the server (offline?). The list is kept.</div>`; }
+  } catch (e) { out.innerHTML = '<div class="r bad">Could not reach the server (offline?). The list is kept.</div>'; }
 }
 function renderResult(l) {
   const head = `<b>${esc(l.line.trim())}</b>`;
@@ -162,10 +121,8 @@ function swapLine(n, original, id) {
   const replacement = (id + ' ' + extra).trim();
   if (i < 0) lines.push(replacement); else lines[i] = replacement;
   ta.value = lines.join('\n');
-  ta.dispatchEvent(new Event('input'));
+  Nerva.setList(ta.value);
 }
-
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 </script>
 </body>
 </html>
