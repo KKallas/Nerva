@@ -81,6 +81,7 @@ data/                             ── the whole state; back it up by copying 
 | Identity      | Email in a signed cookie, entered once           | No passwords, no identity provider           |
 | Photos        | Resized **in the browser** (canvas, max 1280 px), POSTed as a raw JPEG body | No image libraries and no upload parser on the server |
 | Highlighting  | Darken the photo, wipe the dark away with a finger, flatten into the JPEG | The highlight is part of the picture: nothing extra to store, and every viewer shows it |
+| Highlight edge| A blurred reveal wiped through the dark layer a few times | Reads as a soft spotlight rather than a cut-out, and stays legible after a low-contrast print |
 | QR codes      | `qrcode` npm package, rendered on demand         | Nothing to store                             |
 | Scanning      | `BarcodeDetector` in the browser, `jsQR` fallback | No native app                               |
 | Deployment    | `node server.js` behind Caddy, or Dockerfile     | One box, one command                         |
