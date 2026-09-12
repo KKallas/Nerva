@@ -10,6 +10,8 @@ Rules that keep this project simple:
 - Identity is the signed email cookie or the `X-Who` header. No passwords, no OAuth unless the user asks.
 - Keep the dependency list tiny: express, cookie-session, multer, qrcode, dotenv. Ask before adding anything else.
 - Photos are resized in the browser before upload. The server just saves bytes.
+- Code layout is PLAN.md section 7: one concern per file, under ~150 lines. A verb is one file in `verbs/` with the signature `async (lines, who, store) => results`, discovered by filename. Tests in `test/` call verbs directly with an in-memory store.
+- `/` is first of all a lookup tool: search box on top, instant, local, offline. Never make search wait on the server.
 - Mobile first. `/` must work one-handed on a phone at the shelf, offline except for pressing a verb.
-- Follow the build order in PLAN.md section 8. Finish a step fully (page + API + test) before starting the next.
+- Follow the build order in PLAN.md section 9. Finish a step fully (page + API + test) before starting the next.
 - Never commit `data/` or `.env`.

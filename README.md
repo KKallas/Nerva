@@ -2,7 +2,7 @@
 
 Ultra-simple stock management for the robotics lab at Narava University.
 
-The whole system is two moves: **make a list** by scanning QR codes (plain text, offline, no login), then **file it** with one verb: `find`, `out`, `in`, `count`, `new`.
+Need M5 bolts? Open Nerva, type `m5`, see the drawer and a photo of it. Beyond lookup, the whole system is two moves: **make a list** by scanning QR codes (plain text, offline, no login), then **file it** with one verb: `find`, `out`, `in`, `count`, `new`.
 
 - Every item has a photo, a photo of where it lives, and a QR code that opens its page.
 - Sets (e.g. soldering sets) are lent out and checked back in; missing parts are noted on the same list and replaced from stock.
