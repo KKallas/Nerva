@@ -15,6 +15,8 @@ app.get('/parse.js', (req, res) => res.sendFile(path.join(__dirname, 'lib', 'par
 app.get('/search.js', (req, res) => res.sendFile(path.join(__dirname, 'lib', 'search.js')));
 
 app.use(require('./routes/items')(store));
+app.use(require('./routes/photos')(store));
+app.use(require('./routes/qr')(store));
 app.use(require('./routes/file')(store));
 
 app.get('/items', (req, res) => res.sendFile(path.join(__dirname, 'public', 'items.html')));

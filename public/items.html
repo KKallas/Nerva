@@ -27,6 +27,7 @@
 <div class="bar">
   <span class="muted" id="summary"></span>
   <span style="flex:1"></span>
+  <button class="btn" id="labels" style="font-size:14px;padding:7px 11px">Print labels</button>
   <label class="muted">group
     <select id="group"><option value="location">by location</option><option value="tag">by tag</option><option value="none">flat A–Z</option></select>
   </label>
@@ -50,6 +51,8 @@ const FILTERS = {
   noloc:  { label: 'no location',  test: i => !i.location },
 };
 let active = 'all';
+let shownIds = [];   // ids currently on screen, used by "Print labels"
+
 
 $('#q').addEventListener('input', render);
 $('#group').addEventListener('change', render);
@@ -72,6 +75,7 @@ function render() {
     `<button data-f="${k}" aria-pressed="${k === active}">${f.label}<span class="n">${base.filter(f.test).length}</span></button>`).join('');
 
   const shown = base.filter(FILTERS[active].test);
+  shownIds = shown.map(i => i.id);
   const noLoc = all.filter(i => !i.location).length;
   const noPic = all.filter(i => !i.photo).length;
   const gaps = [noLoc && `<span class="warn">${noLoc} without a location</span>`, noPic && `${noPic} without a photo`].filter(Boolean);
@@ -104,6 +108,9 @@ function flags(rows) {
   const n = rows.filter(i => !i.location).length;
   return n ? `· <b>${n} without a location</b>` : '';
 }
+
+// Print labels for exactly what is on screen, so a filter doubles as a selection.
+$('#labels').onclick = () => { location.href = '/labels?ids=' + shownIds.join(','); };
 
 Nerva.wireAdd($('#list'));
 </script>

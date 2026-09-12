@@ -9,7 +9,9 @@ Rules that keep this project simple:
 - Filing applies line by line and reports per line. Good lines stick, bad lines are returned for retry. No transactions.
 - Identity is the signed email cookie or the `X-Who` header. No passwords, no OAuth unless the user asks.
 - Keep the dependency list tiny: express, cookie-session, multer, qrcode, dotenv. Ask before adding anything else.
-- Photos are resized in the browser before upload. The server just saves bytes.
+- Photos are resized in the browser (`Nerva.resizePhoto`, max 1280 px JPEG) and POSTed as a raw `image/jpeg` body. The server just writes the file, so there is no multipart parser and no image library.
+- Dependencies: express, dotenv, qrcode. Ask before adding anything else.
+- After any write from the browser, call `Nerva.refreshCatalogue()`, or the cached catalogue goes stale.
 - Code layout is PLAN.md section 7: one concern per file, under ~150 lines. A verb is one file in `verbs/` with the signature `async (lines, who, store) => results`, discovered by filename. Tests in `test/` call verbs directly with an in-memory store.
 - Adoption rule: the correct action must be the shortest action. If a user can notice wrong data on a screen, that screen needs a one-tap fix that does not require admin. Never add a required field, approval step or lock.
 - Pages are Checkout (`/`), Items (`/items`) and later Locations (`/locations`). Shared styles live in `public/app.css`, shared browser helpers in `public/app.js` (cached catalogue, the list, nav, item rows). A page adds only what is its own.

@@ -58,6 +58,52 @@ window.Nerva = (function () {
     });
   }
 
+  // --- photos: resize in the browser, the server only stores bytes ---
+  async function resizePhoto(file, max, quality) {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, (max || 1280) / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    return new Promise(r => c.toBlob(r, 'image/jpeg', quality || 0.82));
+  }
+  // No `capture` attribute on purpose: on a phone the sheet offers both the
+  // camera and the gallery, so a photo taken earlier can be used too.
+  function pickPhoto() {
+    return new Promise(resolve => {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*';
+      input.onchange = () => resolve(input.files[0] || null);
+      input.click();
+    });
+  }
+  async function uploadPhoto(id, type, blob) {
+    const r = await fetch(`/api/items/${id}/photo?type=${type}`, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'upload failed');
+    refreshCatalogue();
+    return d;
+  }
+  async function removePhoto(id, type) {
+    const r = await fetch(`/api/items/${id}/photo?type=${type}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || 'could not remove');
+    refreshCatalogue();
+  }
+  async function deleteItem(id) {
+    const r = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'could not delete');
+    refreshCatalogue();
+  }
+  // The cached catalogue is stale the moment anything is written. Quietly refetch.
+  function refreshCatalogue() {
+    return fetch('/api/catalogue.json').then(r => r.json())
+      .then(d => { catalogue = d.items; set('nerva.catalogue', JSON.stringify(catalogue)); })
+      .catch(() => {});
+  }
+
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  return { esc, loadCatalogue, get catalogue() { return catalogue; }, listText, setList, addLine, listCount, nav, status, itemRow, wireAdd };
+  return { esc, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, listText, setList, addLine, listCount,
+    nav, status, itemRow, wireAdd, resizePhoto, pickPhoto, uploadPhoto, removePhoto, deleteItem };
 })();

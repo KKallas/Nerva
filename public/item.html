@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nerva</title>
-<link rel="stylesheet" href="/app.css">
 <link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
 <style>
   h1 { font-size:22px; margin:0 0 4px; }
   .id { font-family:ui-monospace,Menlo,monospace; color:var(--muted); font-size:14px; }
@@ -13,16 +13,19 @@
   .big b { font-size:26px; }
   .photos { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
   .photos figure { margin:0; }
-  .photos img, .photos .none { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:var(--line); display:block; }
-  .photos .none { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; }
-  figcaption { color:var(--muted); font-size:13px; margin-top:4px; }
-  .tags span { display:inline-block; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-size:13px; margin:2px 4px 2px 0; }
+  .photos img, .photos .none { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:var(--line); display:block; border:0; }
+  .photos .none { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; cursor:pointer; font:inherit; text-align:center; padding:8px; }
+  .photos .none:hover { border:1px dashed var(--accent); color:var(--accent); }
+  figcaption { color:var(--muted); font-size:13px; margin-top:4px; display:flex; gap:8px; align-items:baseline; }
+  figcaption button { font:inherit; font-size:13px; background:none; border:0; padding:0; color:var(--accent); cursor:pointer; }
+  figcaption button.rm { color:var(--muted); }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:12px 0; }
   .card h2 { font-size:14px; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
-  .warn { color:var(--warn); }
-  button.primary { width:100%; font-size:18px; padding:14px; border-radius:10px; border:0; background:var(--accent); color:#fff; cursor:pointer; margin-top:8px; }
+  .qrbox { display:flex; gap:12px; align-items:center; }
+  .qrbox img { width:96px; height:96px; background:#fff; padding:4px; border-radius:6px; }
   ul { padding-left:20px; margin:4px 0; }
   .muted { color:var(--muted); }
+  .err { color:var(--bad); font-size:14px; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -33,28 +36,90 @@
 const esc = Nerva.esc;
 Nerva.nav('/items');
 const id = location.pathname.split('/').pop().toLowerCase();
-fetch('/api/items/' + id).then(async r => {
+let item = null;
+
+load();
+async function load() {
   const app = document.getElementById('app');
-  if (!r.ok) { app.innerHTML = `<h1>Unknown id <span class="id">${esc(id)}</span></h1><p class="muted">No item with this id. It may have been deleted, or the QR is from another lab.</p>`; return; }
-  const i = await r.json();
-  document.title = i.name + ' · Nerva';
-  app.innerHTML = `
+  const r = await fetch('/api/items/' + id);
+  if (!r.ok) {
+    app.innerHTML = `<h1>Unknown id <span class="id">${esc(id)}</span></h1><p class="muted">No item with this id. It may have been deleted, or the QR is from another lab.</p>`;
+    return;
+  }
+  item = await r.json();
+  document.title = item.name + ' · Nerva';
+  app.innerHTML = view(item);
+  wire();
+}
+
+function photo(kind, has, caption) {
+  const src = `/photos/${id}-${kind === 'item' ? 'item' : 'loc'}.jpg`;
+  return `<figure>
+    ${has ? `<img src="${src}?v=${Date.now()}" alt="${caption}">` : `<button class="none" data-set="${kind}">tap to add a photo</button>`}
+    <figcaption>${caption}
+      <span style="flex:1"></span>
+      <button data-set="${kind}">${has ? 'replace' : 'add'}</button>
+      ${has ? `<button class="rm" data-rm="${kind}">remove</button>` : ''}
+    </figcaption>
+  </figure>`;
+}
+
+function view(i) {
+  return `
     <h1>${esc(i.name)} ${i.kind === 'set' ? '<span class="muted">(set)</span>' : ''}</h1>
     <div class="id">${i.id}</div>
     ${i.description ? `<p>${esc(i.description)}</p>` : ''}
     <div class="big"><b>${i.quantity ?? 0}</b> in stock${i.location ? ` · <b>${esc(i.location)}</b>` : ' · <span class="warn">no location set</span>'}</div>
     <div class="photos">
-      <figure>${i.photo ? `<img src="/photos/${i.id}-item.jpg" alt="">` : '<div class="none">no photo</div>'}<figcaption>the item</figcaption></figure>
-      <figure>${i.locationPhoto ? `<img src="/photos/${i.id}-loc.jpg" alt="">` : '<div class="none">no photo</div>'}<figcaption>where it lives</figcaption></figure>
+      ${photo('item', i.photo, 'the item')}
+      ${photo('loc', i.locationPhoto, 'where it lives')}
     </div>
-    ${i.tags?.length ? `<div class="tags">${i.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
+    ${i.tags?.length ? `<div>${i.tags.map(t => `<span class="tag">${esc(t)}</span> `).join('')}</div>` : ''}
     ${i.kind === 'set' ? `<div class="card"><h2>Contents</h2><ul>${i.contents.map(c => `<li><a href="/i/${c.itemId}">${esc(c.name)}</a> × ${c.qty}</li>`).join('') || '<li class="muted">empty</li>'}</ul>
       ${i.missing?.length ? `<p class="warn">Missing: ${i.missing.map(m => `${esc(m.itemId)} × ${m.qty}`).join(', ')}</p>` : ''}</div>` : ''}
-    ${i.openLoans?.length ? `<div class="card"><h2>Out with</h2><ul>${i.openLoans.map(l => `<li>${esc(l.who)} × ${l.qty} since ${l.borrowedAt.slice(0,10)}</li>`).join('')}</ul></div>` : ''}
-    <button class="primary" id="add">+ add to my list</button>
-    <p class="muted">Updated ${i.updatedAt ? i.updatedAt.slice(0,10) : '—'}</p>`;
-  document.getElementById('add').onclick = () => { Nerva.addLine(i.id); location.href = '/'; };
-});
+    ${i.openLoans?.length ? `<div class="card"><h2>Out with</h2><ul>${i.openLoans.map(l => `<li>${esc(l.who)} × ${l.qty} since ${l.borrowedAt.slice(0, 10)}</li>`).join('')}</ul></div>` : ''}
+    <div class="card"><h2>Label</h2><div class="qrbox">
+      <img src="/api/items/${i.id}/qr.svg" alt="QR code">
+      <div><p class="muted" style="margin:0 0 8px">Scanning this opens this page. Stick it on the box or the shelf.</p>
+      <a class="btn" href="/labels?ids=${i.id}">Print label</a></div>
+    </div></div>
+    <div class="btnrow">
+      <button class="btn primary" id="add">+ add to my list</button>
+      <button class="btn danger" id="del">Delete item</button>
+    </div>
+    <p class="err" id="err" hidden></p>
+    <p class="muted">Updated ${i.updatedAt ? i.updatedAt.slice(0, 10) : '—'}</p>`;
+}
+
+function fail(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; }
+
+function wire() {
+  document.getElementById('add').onclick = () => { Nerva.addLine(item.id); location.href = '/'; };
+
+  document.getElementById('del').onclick = async function () {
+    if (!confirm(`Delete "${item.name}"? The photos go too. This cannot be undone.`)) return;
+    this.disabled = true;
+    try { await Nerva.deleteItem(item.id); location.href = '/items'; }
+    catch (e) { this.disabled = false; fail('Not deleted: ' + e.message); }
+  };
+
+  document.querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
+    const file = await Nerva.pickPhoto();
+    if (!file) return;
+    b.disabled = true; b.textContent = 'uploading…';
+    try {
+      const blob = await Nerva.resizePhoto(file);
+      await Nerva.uploadPhoto(item.id, b.dataset.set, blob);
+      await load();
+    } catch (e) { b.disabled = false; fail('Photo not saved: ' + e.message); }
+  });
+
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await Nerva.removePhoto(item.id, b.dataset.rm); await load(); }
+    catch (e) { b.disabled = false; fail('Photo not removed: ' + e.message); }
+  });
+}
 </script>
 </body>
 </html>

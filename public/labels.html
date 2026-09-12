@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labels · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  .sheet { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:8px; margin-top:12px; }
+  .label { border:1px dashed var(--line); border-radius:8px; padding:8px; display:flex; gap:8px; align-items:center; background:var(--card); break-inside:avoid; }
+  .label img { width:64px; height:64px; flex:none; background:#fff; padding:3px; border-radius:4px; }
+  .label .t { min-width:0; }
+  .label .n { font-weight:600; font-size:13px; line-height:1.25; }
+  .label .i { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted); }
+  .label .w { font-size:11px; color:var(--muted); }
+  @media print {
+    @page { size:A4; margin:10mm; }
+    nav.tabs, .noprint { display:none !important; }
+    body { background:#fff; color:#000; max-width:none; padding:0; }
+    .sheet { grid-template-columns:repeat(3, 1fr); gap:4mm; }
+    .label { border:1px solid #bbb; background:#fff; }
+    .label .i, .label .w { color:#555; }
+  }
+</style>
+</head>
+<body>
+<div class="noprint">
+  <h1 style="font-size:18px">Labels</h1>
+  <p class="muted" id="what"></p>
+  <div class="btnrow">
+    <button class="btn primary" onclick="print()">Print</button>
+    <a class="btn" href="/items">Back to items</a>
+  </div>
+</div>
+<div class="sheet" id="sheet"></div>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<script>
+Nerva.nav('/items');
+const esc = Nerva.esc;
+const ids = (new URLSearchParams(location.search).get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
+Nerva.loadCatalogue((all, how) => {
+  if (how === 'cached') return;
+  const items = ids.length ? ids.map(id => all.find(i => i.id === id)).filter(Boolean) : all;
+  document.getElementById('what').textContent = `${items.length} label${items.length === 1 ? '' : 's'}. Each QR opens that item's page.`;
+  document.getElementById('sheet').innerHTML = items.map(i => `
+    <div class="label">
+      <img src="/api/items/${i.id}/qr.svg" alt="QR for ${esc(i.name)}">
+      <div class="t">
+        <div class="n">${esc(i.name)}</div>
+        <div class="i">${i.id}</div>
+        <div class="w">${esc(i.location) || ''}</div>
+      </div>
+    </div>`).join('') || '<p class="muted">Nothing to print.</p>';
+});
+</script>
+</body>
+</html>

@@ -79,7 +79,7 @@ data/                             ── the whole state; back it up by copying 
 | Frontend      | Static HTML + vanilla JS, served by the same app | No bundler, no framework upgrades            |
 | The list      | `localStorage`, plain text                       | Survives closing the browser, works offline  |
 | Identity      | Email in a signed cookie, entered once           | No passwords, no identity provider           |
-| Photos        | Resized **in the browser** (canvas, max 1280 px) | No image libraries on the server             |
+| Photos        | Resized **in the browser** (canvas, max 1280 px), POSTed as a raw JPEG body | No image libraries and no upload parser on the server |
 | QR codes      | `qrcode` npm package, rendered on demand         | Nothing to store                             |
 | Scanning      | `BarcodeDetector` in the browser, `jsQR` fallback | No native app                               |
 | Deployment    | `node server.js` behind Caddy, or Dockerfile     | One box, one command                         |
@@ -174,7 +174,7 @@ One app page does nearly everything; the rest are small.
 | `/i/<id>/edit`       | admin | Edit fields, contents (for sets), take / upload photos (`<input capture>`) |
 | `/loans`             | all   | My open loans (everyone), all open loans + overdue (admin)   |
 | `/incomplete`        | admin | Sets with missing parts, `fix` button                       |
-| `/labels?ids=a,b,c`  | all   | Printable A4 sheet of QR labels (name + id + QR)             |
+| `/labels?ids=a,b,c`  | all   | Printable A4 sheet of QR labels (QR + name + id + location). Items passes whatever the filters currently show, so a filter doubles as a selection. |
 | `/hello`             | all   | "Who are you?" – email + name, sets the cookie. Shown the first time you file. |
 | `/admin`             | admin | Users & roles, export zip, CSV import                       |
 
@@ -190,9 +190,10 @@ POST   /api/file?verb=out               body: text/plain (the list) or JSON { te
 GET    /api/items?q=                    search
 GET    /api/items/:id
 PUT    /api/items/:id                   admin
-DELETE /api/items/:id                   admin (refused if open loans)
-POST   /api/items/:id/photo?type=item|loc   admin, multipart JPEG
-GET    /api/items/:id/qr.png            PNG of https://<host>/i/<id>
+DELETE /api/items/:id                   admin (refused while on loan or inside a set)
+POST   /api/items/:id/photo?type=item|loc   raw image/jpeg body
+DELETE /api/items/:id/photo?type=item|loc
+GET    /api/items/:id/qr.svg            QR of https://<host>/i/<id> (also qr.png?w=512)
 GET    /api/loans?open=1&mine=1
 GET    /api/me
 GET    /api/users            admin
@@ -235,7 +236,9 @@ verbs/in.js
 verbs/count.js
 verbs/new.js
 verbs/fix.js
-routes/items.js        item CRUD, photos, qr
+routes/items.js        item read + delete
+routes/photos.js       photo upload and removal
+routes/qr.js           qr.svg / qr.png and the label sheet
 routes/file.js         POST /api/file → picks verbs/<verb>.js by name
 routes/loans.js
 routes/admin.js
@@ -271,7 +274,7 @@ Conventions that make LLM edits safe:
 
 1. ✅ **Lookup** – Express, JSON store with atomic writes, `/api/catalogue.json`, `/` with instant local search (location + photo + quantity), item page, `manifest.json` + service worker. No identity needed yet. Usable on day one for "which shelf".
 1b. ✅ **List + find** – the textarea, shared parser in `lib/parse.js`, `verbs/find.js`, `POST /api/file`.
-2. **Scan + QR + labels** – camera overlay appending to the list, `/api/items/:id/qr.png`, `/labels` print sheet, photos with client-side resize, `/i/<id>/edit`.
+2. **Scan + QR + labels** – ✅ QR codes, `/labels` print sheet, photos with client-side resize, item delete. Still to do: the camera overlay that appends scans to the list, and editing an item's fields (`/i/<id>/edit`).
 3. **Identity + out/in/count** – `/hello` cookie, `users.json`, `POST /api/file` for `out`, `in`, `count`, `/loans`.
 4. **Sets** – contents editor, `- part xN` lines on `in`, `missing`, `/incomplete`, `fix`.
 5. **new + admin** – `new` verb creating items from names and opening `/labels`, `/admin`, export zip, CSV import.

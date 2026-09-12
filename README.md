@@ -26,7 +26,7 @@ Open it on a phone on the same Wi-Fi with `http://<your-ip>:3000`. Camera scanni
 
 ## Status
 
-Build step 1 done: instant offline search, item pages, the text list with the `find` verb, `POST /api/file`, installable PWA shell, seed data.
+Working today: instant offline search, the Checkout and Items pages, item pages, the text list with the `find` verb, QR codes and printable labels, item and location photos taken from a phone, and deleting items.
 
 Try from a terminal:
 
@@ -34,7 +34,7 @@ Try from a terminal:
 printf 'multimeter\nm5 bolt\n' | curl -s --data-binary @- 'http://localhost:3000/api/file?verb=find'
 ```
 
-Next: step 2 in [PLAN.md](PLAN.md) (camera scan, QR codes, labels, photos).
+Next: the camera overlay that appends scans to the list, and editing item fields. See the build order in [PLAN.md](PLAN.md).
 
 ## License
 

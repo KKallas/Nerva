@@ -11,9 +11,12 @@
     "test": "node --test test/*.test.js",
     "seed": "node bin/seed.js"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4"
   }
 }
