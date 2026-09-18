@@ -59,8 +59,12 @@ A small Ubuntu server is enough: Node 22 runs Nerva as a systemd service
 (`nerva`) from `/opt/nerva`, with `DATA_DIR=/var/lib/nerva` so a deploy can never
 touch the data, and Caddy in front for HTTPS. Set `BASE_URL` in the server's
 `.env` to the permanent address so printed labels keep working. To ship the
-working tree: `bin/deploy.sh [user@host]` (runs the tests, copies the code,
-restarts the service). Everything worth backing up is in `DATA_DIR`.
+working tree by hand: `bin/deploy.sh [user@host]` (runs the tests, copies the
+code, restarts the service). Every push to `main` does the same through GitHub
+Actions (`.github/workflows/deploy.yml`): tests first, then rsync over SSH as a
+`deploy` user that owns only the code and may only restart the service; the
+private key is the `DEPLOY_SSH_KEY` repository secret. Everything worth backing
+up is in `DATA_DIR`.
 
 ## Status
 

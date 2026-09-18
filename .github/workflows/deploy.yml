@@ -1,0 +1,57 @@
+# Every push to main: run the tests, then put that commit live.
+# The server side is bin/deploy.sh's remote half: rsync into /opt/nerva as the
+# `deploy` user (who owns the code and nothing else) and restart the service.
+# Data in /var/lib/nerva and the server's .env are never touched.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: 134.209.94.101
+  DEPLOY_USER: deploy
+  DEPLOY_HOSTKEY: "134.209.94.101 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAlMXbSDQZPAo0W7/FtAGL5AbfiW3Zh49uBqptHRQtyN"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_HOSTKEY" > ~/.ssh/known_hosts
+      - name: Copy the code
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes" \
+            --exclude node_modules --exclude data --exclude .env --exclude .git --exclude .github \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:/opt/nerva/"
+      - name: Install and restart
+        run: |
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes "$DEPLOY_USER@$DEPLOY_HOST" \
+            'cd /opt/nerva && npm ci --omit=dev --no-audit --no-fund && find . -path ./.env -prune -o -exec chmod g+rX {} + \
+             && sudo -n systemctl restart nerva && sleep 2 && sudo -n systemctl is-active nerva'
+      - name: Check it answers
+        run: |
+          sleep 3
+          curl -fsS -o /dev/null -w 'live: %{http_code}\n' https://lab.roboarena.org/api/catalogue.json
