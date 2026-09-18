@@ -3,7 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { search } = require('../lib/search');
-const { unitId, placeOf } = require('../lib/units');
+const { unitId, placeOf, numberEach } = require('../lib/units');
+const { requireAdmin } = require('../lib/who');
+const { outstanding, byDue } = require('../lib/loans');
 
 module.exports = function itemRoutes(store) {
   const router = express.Router();
@@ -24,7 +26,11 @@ module.exports = function itemRoutes(store) {
     if (!found) return res.status(404).json({ error: 'no such item' });
     const { item, unit } = found;
     const id = unit ? unitId(item.id, unit.n) : item.id;
-    const openLoans = [...store.loans.values()].filter(l => l.itemId === id && !l.returnedAt);
+    // what is out, across the whole product: a unit page lists its siblings
+    // too, and the page picks out the loans that are about the one it shows
+    const ids = new Set([item.id, ...(item.units || []).map(u => unitId(item.id, u.n))]);
+    const openLoans = [...store.loans.values()].filter(l => ids.has(l.itemId) && !l.returnedAt)
+      .sort(byDue).map(l => ({ ...l, outstanding: outstanding(l) }));
     const contents = (item.contents || []).map(c => ({
       ...c, name: store.items.get(c.itemId)?.name || c.itemId,
     }));
@@ -57,7 +63,7 @@ module.exports = function itemRoutes(store) {
     const name = FIELDS.name(body.name);
     if (!name) return res.status(400).json({ error: 'a name is required' });
     const quantity = Math.max(0, Math.min(1e6, Math.round(Number(body.quantity)) || 0));
-    const item = store.saveItem({
+    const fresh = {
       id: store.newId(),
       kind: body.kind === 'set' ? 'set' : 'item',
       name,
@@ -65,8 +71,13 @@ module.exports = function itemRoutes(store) {
       tags: FIELDS.tags(body.tags),
       quantity,
       location: '',
-    });
-    store.log({ type: 'new', id: item.id, name, quantity, who: req.who || null });
+      consumable: body.consumable && !body.tracked ? true : undefined,
+    };
+    // "number each one" from the start: a label per unit, like the switch on the item page
+    const problem = body.tracked ? numberEach(fresh) : null;
+    if (problem) return res.status(400).json({ error: problem });
+    const item = store.saveItem(fresh);
+    store.log({ type: 'new', id: item.id, name, quantity, tracked: item.tracked || undefined, who: req.who || null });
     res.json({ ok: true, item });
   });
 
@@ -85,9 +96,23 @@ module.exports = function itemRoutes(store) {
     res.json({ ok: true, item });
   });
 
+  // Used up, not lent: bolts, glue, tape. Taking them makes no loan, so nobody
+  // is chased for a roll of tape. Its own action, like every other field that
+  // is not typed text.
+  router.put('/api/items/:id/consumable', express.json(), (req, res) => {
+    const item = store.items.get(String(req.params.id).toLowerCase());
+    if (!item) return res.status(404).json({ error: 'no such item' });
+    if (item.tracked) return res.status(400).json({ error: 'numbered things are lent one by one, so they are expected back' });
+    item.consumable = !!(req.body && req.body.consumable);
+    store.saveItem(item);
+    store.log({ type: 'consumable', id: item.id, consumable: item.consumable, who: req.who || null });
+    res.json({ ok: true, item });
+  });
+
   // Delete. Refused while the item is out on loan or is part of a set:
   // both would leave a dangling reference someone has to puzzle out later.
-  router.delete('/api/items/:id', (req, res) => {
+  // Admin only: a fix is anyone's, removing a thing for good is not.
+  router.delete('/api/items/:id', requireAdmin, (req, res) => {
     const id = String(req.params.id).toLowerCase();
     const item = store.items.get(id);
     if (!item) return res.status(404).json({ error: 'no such item' });

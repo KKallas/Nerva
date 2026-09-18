@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to use Nerva</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/app.css">
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: 0 0 40px; }
+  h1 { font-size: 24px; margin: 8px 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 18px; }
+  h2 { font-size: 19px; margin: 28px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 18px 0 4px; }
+  p, li { line-height: 1.5; font-size: 15px; }
+  ol, ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  b.ui { font-weight: 600; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
+  .tip { background: var(--card); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 12px; margin: 12px 0; font-size: 14px; }
+  .tip b { font-weight: 600; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; padding: 0; list-style: none; }
+  .toc a { display: inline-block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); text-decoration: none; font-size: 14px; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
+  td, th { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>How to use Nerva</h1>
+<p class="lead">Nerva answers two questions: <i>where is it</i>, and <i>who has it</i>. Everything in the lab has a QR label, every shelf has one too, and taking something is a list you file from your phone.</p>
+
+<ul class="toc">
+  <li><a href="#login">1. Log in</a></li>
+  <li><a href="#places">2. Photograph the places</a></li>
+  <li><a href="#items">3. Add items</a></li>
+  <li><a href="#out">4. Take things out</a></li>
+  <li><a href="#in">5. Bring them back</a></li>
+  <li><a href="#fix">6. Fixing what is wrong</a></li>
+</ul>
+
+<div class="tip"><b>Looking something up never needs a login.</b> Open <a href="/">Checkout</a>, type <i>m5</i>, and you see the drawer and a photo of it. You only log in to change something.</div>
+
+<h2 id="login">1. Log in</h2>
+<ol>
+  <li>You get a printed <b>card</b> with a QR code from the admin. Scan it with your phone's camera app. It opens Nerva and says <b class="ui">Welcome, &lt;your name&gt;</b>.</li>
+  <li>Choose a password (at least 6 characters), type it twice, tap <b class="ui">Set password and log in</b>.</li>
+  <li>From now on you log in with your username or your card, plus that password. Your phone stays logged in as long as you keep using Nerva.</li>
+</ol>
+<p>Your name is at the right end of the tab bar. Tap it to change your password, see your loans, or log out.</p>
+
+<h2 id="places">2. Photograph the places</h2>
+<p>Before adding things, add the cabinets and benches they live in, and take a photo of each one <b>from where a person would stand</b>, so a newcomer can recognise the spot from across the room. Do it once; every item filed there inherits the photo.</p>
+
+<h3>2a. Add a location and its shelves</h3>
+<ol>
+  <li>Open the <b class="ui">Locations</b> tab.</li>
+  <li>In <b class="ui">New location, e.g. Cabinet D</b> type the name as people say it, for example <i>Cabinet C</i> or <i>Electronics bench</i>, and tap <b class="ui">Add</b>.</li>
+  <li>Inside the new card, type each drawer or level in <b class="ui">New shelf, e.g. drawer 3</b> and tap <b class="ui">Add shelf</b>. A shelf is any place you would point at: <i>drawer 1</i>, <i>top shelf</i>, <i>left side</i>.</li>
+</ol>
+
+<h3>2b. Take the photo</h3>
+<ol>
+  <li>Tap the <b class="ui">+</b> square next to the location (or open the location and tap <b class="ui">tap to photograph this place</b>). Your phone offers the camera or the gallery.</li>
+  <li>Take the picture so that the whole cabinet and something recognisable around it are in the frame: the window, the door, the bench next to it.</li>
+  <li>The photo comes back <b>darkened</b>. Draw with your finger over the part the photo is about, and only that part is lit up. For a location, wipe the whole cabinet; for a shelf, wipe just that drawer. <b class="ui">brush ●</b> changes the size, <b class="ui">undo</b> takes back a stroke, <b class="ui">reset</b> starts again.</li>
+  <li>Tap <b class="ui">use photo</b>. If the picture is clear on its own, <b class="ui">no highlight</b> saves it as it is.</li>
+</ol>
+<p>Do the same for each shelf: open the shelf from the Locations page and photograph it. A shelf photo with its drawer lit up is what people see under "where it lives" on every item on that shelf.</p>
+<div class="tip"><b>Labels for the shelves.</b> On a location or shelf page, <b class="ui">Print sheet</b> gives an A4 sheet of QR labels and <b class="ui">Sticker printer</b> one label for a pocket printer. <b class="ui">Print labels for every shelf</b> on the Locations page does all of them. Scanning a shelf label shows what belongs there.</div>
+
+<h2 id="items">3. Add items</h2>
+<p>Open the <b class="ui">Items</b> tab and tap <b class="ui">+ New item</b>. Three fields, then the item exists. Here are the three kinds of thing, with one example each.</p>
+
+<h3>Example 1 · M5 bolts – gets used up</h3>
+<ol>
+  <li><b class="ui">Name</b>: <i>M5 bolts 20 mm</i>. Name the kind of thing, the way people search for it. Not "bolt", and not one entry per bolt.</li>
+  <li><b class="ui">How many</b>: roughly how many are in the box, say <i>200</i>.</li>
+  <li>Kind: <b class="ui">Gets used up</b>. Bolts, glue, solder, PLA and tape are given out and never come back. Taking some lowers the count and makes no loan, so nobody is chased for a bolt.</li>
+  <li>Tap <b class="ui">Add</b>. The line under the form shows <code>[id] M5 bolts 20 mm</code> with links to <b class="ui">open</b> it and print a <b class="ui">sticker</b>.</li>
+</ol>
+
+<h3>Example 2 · Dobot MG400 robot arm – number each one</h3>
+<ol>
+  <li><b class="ui">Name</b>: <i>Dobot MG400 robot arm</i>.</li>
+  <li><b class="ui">How many</b>: how many arms the lab has, say <i>3</i>.</li>
+  <li>Kind: <b class="ui">Number each one</b>. Each arm has its own serial number and its own history, so each gets its own label: <i>#1</i>, <i>#2</i>, <i>#3</i>. When one is out, Nerva says which one and with whom.</li>
+  <li>Tap <b class="ui">Add</b>. The line says <i>numbered #1–#3</i>; <b class="ui">labels</b> opens a sheet with one QR per arm. Stick each label on the arm itself, not on the shelf.</li>
+</ol>
+
+<h3>Example 3 · USB cable – lent out and brought back</h3>
+<ol>
+  <li><b class="ui">Name</b>: <i>USB-C cable 1 m</i>.</li>
+  <li><b class="ui">How many</b>: <i>10</i>.</li>
+  <li>Kind: leave <b class="ui">Lent out and brought back</b> selected. One label for the box; taking two makes a loan for two under your name, and the count goes up again when they are checked back in.</li>
+  <li>Tap <b class="ui">Add</b>, then <b class="ui">sticker</b> for the label on the box.</li>
+</ol>
+
+<h3>3b. Photo, count, place</h3>
+<p>Open the item (tap its name anywhere). The page is the same for every kind; do these three things, top to bottom.</p>
+<ol>
+  <li><b>Photo of the thing.</b> Under the name are two squares. Tap <b class="ui">tap to add a photo</b> under <b class="ui">the item</b> and photograph it. If it sits among other things, wipe the dark away over it, exactly as with the shelf. For a numbered product there is one wide square for the place they all share; each numbered one has its own photo square in its row (<i>#1</i>, <i>#2</i>…).</li>
+  <li><b>Count.</b> In the <b class="ui">Counting</b> card, <b class="ui">Counted just now</b> holds the number; correct it and tap <b class="ui">Save count</b>. Numbered products are not counted: <b class="ui">+ add one</b> and <b class="ui">retire</b> change how many there are.</li>
+  <li><b>Where it lives.</b> In the <b class="ui">Where it lives</b> card, pick the shelf from the list (locations are the groups, shelves the entries; <b class="ui">anywhere in Cabinet C</b> if it has no shelf). It saves as soon as you pick. The second photo square, <b class="ui">where it lives</b>, is for a photo of the spot itself, showing the box among its neighbours.</li>
+</ol>
+<div class="tip"><b>Print and stick.</b> The <b class="ui">Label</b> card at the bottom has the QR: <b class="ui">Print sheet</b> for A4, <b class="ui">Sticker printer</b> for one sticker. On the Items page, <b class="ui">Print labels</b> prints every item currently shown, so a filter like <b class="ui">no location</b> doubles as a selection.</div>
+
+<h2 id="out">4. Take things out</h2>
+<p>Taking things is a list that you file with <b class="ui">out</b>. It takes ten seconds at the shelf.</p>
+<ol>
+  <li>Open <b class="ui">Checkout</b>. Build the list in any of three ways:
+    <ul>
+      <li><b class="ui">📷 scan</b> and point the camera at the labels one after another. Each scan adds a line and buzzes. Tap <b class="ui">Done</b>.</li>
+      <li>Search <b class="ui">What do you need? e.g. m5 bolt</b> and tap <b class="ui">+</b> on a result.</li>
+      <li>Type into the list: an id, a name, or a name with a quantity like <code>usb-c cable x2</code>.</li>
+    </ul>
+  </li>
+  <li>Want more than one of something? Add <code>x3</code> at the end of its line. A numbered thing is one line per unit: scan the arm you are taking, and its line says <i>#2</i>.</li>
+  <li>Anything on the list that is already out with someone is shown under the list, with the return date, before you try.</li>
+  <li>Tap <b class="ui">out</b>. A box says <b class="ui">Check out as &lt;you&gt;</b>, lists every line, and asks <b class="ui">Bring back by</b> a date (two weeks from today unless you change it). Things that get used up say <i>used up, not expected back</i> and need no date.</li>
+  <li>Tap <b class="ui">Confirm checkout</b>. Each line answers: <i>USB-C cable 1 m x2 · yours until 2026-10-02 · 8 left</i>. Lines that went through leave the list; a line that failed stays, with the reason, for another try.</li>
+</ol>
+<p>The <b class="ui">Loans</b> tab shows what you have out and when it is due. You can move your own return date there.</p>
+<div class="tip"><b>Not logged in?</b> Tapping <b class="ui">out</b> sends you to the login page and the list is waiting when you come back. Building the list works offline; only pressing a verb needs the network.</div>
+
+<h2 id="in">5. Bring them back</h2>
+<p>Checking in is done by an <b>admin</b>, who looks at what came back before it counts as returned. Put the things on the return shelf, or hand them to the admin.</p>
+<p>For the admin, on the <b class="ui">Loans</b> tab:</p>
+<ol>
+  <li>Every checkout is a card: the person, <b class="ui">back by &lt;date&gt;</b> or <b class="ui">overdue since &lt;date&gt;</b> in red, and one row per thing. Sort with <b class="ui">by return date</b>, <b class="ui">by person</b> or <b class="ui">newest first</b>.</li>
+  <li>Tap <b class="ui">check in</b> on a row. If more than one was taken, it asks <i>How many of the 2 came back?</i> so a partial return is fine.</li>
+  <li><b class="ui">check in all</b> at the bottom of a card takes back everything still open on it.</li>
+</ol>
+<p>Each check-in raises the shelf count again and writes to the history of the item, the shelf and the person, with the admin's name. An admin can also scan the returned labels into the Checkout list and press <b class="ui">in</b>; it is the same thing.</p>
+<p><b class="ui">Overview</b> (from Loans, admin only) lists who is late and by how many days, who still has things, and which places have things missing.</p>
+
+<h2 id="fix">6. Fixing what is wrong</h2>
+<p>Nerva is kept right by whoever is standing at the shelf. Nothing needs an admin or a form.</p>
+<table>
+  <tr><th>You notice</th><th>Do this, on the item page</th></tr>
+  <tr><td>The count is off</td><td>Type what you see in <b class="ui">Counted just now</b>, tap <b class="ui">Save count</b>. Or on Checkout: scan the boxes, tap <b class="ui">count</b>, type the numbers, <b class="ui">Set counts</b>.</td></tr>
+  <tr><td>Not on the shelf it says</td><td>Pick the right shelf under <b class="ui">Where it lives</b>.</td></tr>
+  <tr><td>Wrong or missing photo</td><td>Tap <b class="ui">replace</b> or <b class="ui">add</b> under the photo.</td></tr>
+  <tr><td>Hard to find by name</td><td>Open <b class="ui">edit name, description and tags</b> and add the words people use.</td></tr>
+  <tr><td>A numbered one is broken or gone</td><td><b class="ui">retire</b> it. Its number is never given to another one.</td></tr>
+  <tr><td>Bolts have become a thing we lend</td><td>Untick <b class="ui">Gets used up</b>. The other way round works too.</td></tr>
+</table>
+<p>Everything you change is in the <b class="ui">History</b> at the bottom of every item, place and person, with your name and the time, so a mistake is easy to see and to undo.</p>
+</main>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<script>Nerva.nav('/help');</script>
+</body>
+</html>

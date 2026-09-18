@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0; }
+  .card h2 { font-size:13px; color:var(--muted); margin:0 0 10px; text-transform:uppercase; letter-spacing:.05em; }
+  h1 { font-size:22px; margin:4px 0 2px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:10px 0 4px; }
+  .msg { font-size:14px; margin:10px 0 0; }
+  .msg.bad { color:var(--bad); } .msg.good { color:var(--ok); }
+</style>
+</head>
+<body>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<div id="app"><p class="muted">…</p></div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = Nerva.esc;
+Nerva.nav('');
+
+Nerva.whoami().then(me => {
+  if (!me) return Nerva.toLogin();
+  $('#app').innerHTML = `
+    <h1>${esc(me.name)}</h1>
+    <p class="muted">Logged in as <b>${esc(me.username)}</b>${me.role === 'admin' ? ' · admin' : ''}</p>
+    ${me.role === 'admin' ? `<div class="card"><h2>Admin</h2>
+      <p class="muted" style="margin:0">Add people, print their login cards, reset a forgotten password.</p>
+      <div class="btnrow"><a class="btn primary" href="/users">Manage users</a></div></div>` : ''}
+    <div class="card"><h2>Your loans and history</h2>
+      <p class="muted" style="margin:0">What you have out, what you brought back and when.</p>
+      <div class="btnrow"><a class="btn primary" href="/u/${esc(me.username)}">Open</a></div></div>
+    <form class="card" id="pw">
+      <h2>Change password</h2>
+      <input type="text" autocomplete="username" value="${esc(me.username)}" hidden>
+      <label for="current">Current password</label>
+      <input type="password" id="current" autocomplete="current-password" required>
+      <label for="next">New password (at least 6 characters)</label>
+      <input type="password" id="next" autocomplete="new-password" required>
+      <div class="btnrow"><button class="btn primary" id="save">Change password</button></div>
+      <p class="msg" id="msg" hidden></p>
+      <p class="muted">Your other phones and computers are logged out when you change it.</p>
+    </form>
+    <div class="btnrow"><button class="btn" id="logout">Log out</button></div>`;
+
+  $('#pw').onsubmit = async e => {
+    e.preventDefault();
+    const msg = (text, good) => { $('#msg').textContent = text; $('#msg').className = 'msg ' + (good ? 'good' : 'bad'); $('#msg').hidden = false; };
+    $('#save').disabled = true;
+    try {
+      await Nerva.api('PUT', '/api/me/password', { current: $('#current').value, password: $('#next').value });
+      $('#current').value = $('#next').value = '';
+      msg('Password changed.', true);
+    } catch (err) { msg(err.message); }
+    $('#save').disabled = false;
+  };
+
+  $('#logout').onclick = async () => {
+    await Nerva.api('POST', '/api/logout').catch(() => {});
+    Nerva.setMe(null);
+    location.href = '/';
+  };
+});
+</script>
+</body>
+</html>

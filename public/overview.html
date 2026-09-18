@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Overview · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  h1 { font-size:22px; margin:8px 0 2px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; margin-top:10px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .tile b { display:block; font-size:26px; font-variant-numeric:tabular-nums; }
+  .tile span { color:var(--muted); font-size:13px; }
+  .tile.bad b { color:var(--bad); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:12px 0; }
+  .card h2 { font-size:14px; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; font-weight:500; color:var(--muted); font-size:12px; padding:4px 8px 4px 0; white-space:nowrap; }
+  td { padding:6px 8px 6px 0; border-top:1px solid var(--line); vertical-align:top; font-variant-numeric:tabular-nums; }
+  td.day { white-space:nowrap; }
+  td a { color:var(--accent); text-decoration:none; }
+  td.late { color:var(--bad); font-weight:600; white-space:nowrap; }
+  td small { display:block; color:var(--muted); }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<div id="app"><p class="muted">loading…</p></div>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<script>
+const esc = Nerva.esc;
+Nerva.nav('/loans');
+
+load();
+async function load() {
+  const app = document.getElementById('app');
+  let d;
+  try { d = await Nerva.api('GET', '/api/overview'); }
+  catch (e) { app.innerHTML = `<h1>Overview</h1><p class="muted">${esc(e.message)}. <a href="/loans">Your own checkouts</a> are on Loans.</p>`; return; }
+  const days = n => (n ? `${n} day${n === 1 ? '' : 's'} late` : '');
+  // What a group still has out, as one line under its name. Each group says
+  // the half that its heading does not: a person lists things, an item lists
+  // people, a place lists both.
+  const many = l => (l.outstanding > 1 ? ' ×' + l.outstanding : '');
+  const unit = l => (l.itemId.includes('-') ? ' #' + l.itemId.split('-').pop() : '');
+  const SAYS = { who: l => esc(l.name) + many(l), item: l => esc(l.whoName) + unit(l) + many(l), place: l => `${esc(l.name)}${many(l)} (${esc(l.whoName)})` };
+  const table = (head, rows) => `<div class="scroll"><table><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${rows.join('')}</table></div>`;
+  const group = (title, note, rows, first) => `<div class="card"><h2>${title}</h2>${rows.length
+    ? table([first, 'out', 'late', 'next due', ''], rows.map(g => `<tr><td>${g.link}<small>${g.loans.map(SAYS[first]).join(', ')}</small></td><td>${g.things}</td><td>${g.late || ''}</td><td class="day">${esc(g.nextDue)}</td><td class="late">${days(g.worst)}</td></tr>`))
+    : `<p class="muted" style="margin:0">${note}</p>`}</div>`;
+
+  app.innerHTML = `
+    <h1>Overview</h1>
+    <p class="muted">What is out of the lab right now. <a href="/loans">Check things in on Loans.</a></p>
+    <div class="tiles">
+      <div class="tile"><b>${d.totals.things}</b><span>things out</span></div>
+      <div class="tile${d.totals.late ? ' bad' : ''}"><b>${d.totals.late}</b><span>loans late</span></div>
+      <div class="tile"><b>${d.totals.people}</b><span>people holding something</span></div>
+    </div>
+    <div class="card"><h2>Late, longest first</h2>${d.late.length
+      ? table(['what', 'who', 'was due', ''], d.late.map(l => `<tr><td><a href="/i/${esc(l.itemId)}">${esc(l.name)}</a>${l.outstanding > 1 ? ' ×' + l.outstanding : ''}${l.partly ? '<small>part of it is back</small>' : ''}</td>
+          <td><a href="/u/${esc(l.who)}">${esc(l.whoName)}</a></td><td class="day">${esc(l.dueAt)}</td><td class="late">${days(l.daysLate)}</td></tr>`))
+      : '<p class="muted" style="margin:0">Nothing is late.</p>'}</div>
+    ${group('People with things not yet returned', 'Nobody has anything out.', d.people.map(g => ({ ...g, link: `<a href="/u/${esc(g.who)}">${esc(g.whoName)}</a>` })), 'who')}
+    ${group('Items that are out', 'Every item is in.', d.items.map(g => ({ ...g, link: `<a href="/i/${esc(g.id)}">${esc(g.name)}</a>` })), 'item')}
+    ${group('Places with things missing', 'Nothing is missing from a filed place.', d.places.map(g => ({ ...g, link: `<a href="/l/${esc(g.place)}">${esc(g.placeName)}</a>` })), 'place')}`;
+}
+</script>
+</body>
+</html>

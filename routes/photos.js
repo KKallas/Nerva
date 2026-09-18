@@ -16,6 +16,10 @@ const photoName = (item, unit, type) =>
 
 module.exports = function photoRoutes(store) {
   const router = express.Router();
+  // The browser sends a 1280 px JPEG, well under 2 MB; the file is served as
+  // image/jpeg, so it must start like one.
+  const jpeg = express.raw({ type: 'image/jpeg', limit: '2mb' });
+  const isJpeg = b => Buffer.isBuffer(b) && b.length > 2 && b[0] === 0xff && b[1] === 0xd8;
 
   // A unit id ("338va6-2") photographs that one object. A location photo taken
   // on a unit belongs to the product while the unit lives wherever the product
@@ -37,9 +41,9 @@ module.exports = function photoRoutes(store) {
     store.saveItem(t.item);
   };
 
-  router.post('/api/items/:id/photo', express.raw({ type: 'image/jpeg', limit: '4mb' }), (req, res) => {
+  router.post('/api/items/:id/photo', jpeg, (req, res) => {
     const t = target(req, res); if (!t) return;
-    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'send a JPEG body' });
+    if (!isJpeg(req.body)) return res.status(400).json({ error: 'send a JPEG body' });
     fs.writeFileSync(t.file + '.tmp', req.body);
     fs.renameSync(t.file + '.tmp', t.file);
     mark(t, true);
@@ -71,9 +75,9 @@ module.exports = function photoRoutes(store) {
     store.saveLocation(found.location);
   };
 
-  router.post('/api/places/:id/photo', express.raw({ type: 'image/jpeg', limit: '4mb' }), (req, res) => {
+  router.post('/api/places/:id/photo', jpeg, (req, res) => {
     const found = place(req, res); if (!found) return;
-    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'send a JPEG body' });
+    if (!isJpeg(req.body)) return res.status(400).json({ error: 'send a JPEG body' });
     const id = String(req.params.id).toLowerCase();
     fs.writeFileSync(placeFile(id) + '.tmp', req.body);
     fs.renameSync(placeFile(id) + '.tmp', placeFile(id));

@@ -22,6 +22,7 @@
 <script src="/parse.js"></script>
 <script src="/paint.js"></script>
 <script src="/app.js"></script>
+<script src="/log.js"></script>
 <div id="app"><p class="muted">loading…</p></div>
 <script>
 const esc = Nerva.esc;
@@ -53,7 +54,11 @@ async function load() {
       <a class="btn" href="/labels?places=${place.id}">Print sheet</a>
       <a class="btn" href="/sticker?id=${place.id}">Sticker printer</a></div>
     </div></div>
+    <div class="card"><h2>History</h2>
+      <p class="muted" style="margin:0">What was put here and taken from here, and by whom.</p>
+      <ul class="log" id="history"></ul></div>
     <p class="err" id="err" hidden></p>`;
+  NervaLog.show(document.getElementById('history'), `/api/places/${place.id}/history`);
   wire();
 }
 

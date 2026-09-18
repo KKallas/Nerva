@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Person · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  h1 { font-size:22px; margin:8px 0 2px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:12px 0; }
+  .card h2 { font-size:14px; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; font-weight:500; color:var(--muted); font-size:12px; padding:4px 8px 4px 0; }
+  td { padding:6px 8px 6px 0; border-top:1px solid var(--line); vertical-align:top; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td:first-child { white-space:normal; }
+  td a { color:var(--accent); text-decoration:none; }
+  td.late { color:var(--bad); font-weight:600; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<div id="app"><p class="muted">loading…</p></div>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<script src="/log.js"></script>
+<script>
+const esc = Nerva.esc;
+Nerva.nav('/loans');
+const username = decodeURIComponent(location.pathname.split('/').pop()).toLowerCase();
+
+load();
+async function load() {
+  const app = document.getElementById('app');
+  let d;
+  try { d = await Nerva.api('GET', `/api/people/${encodeURIComponent(username)}`); }
+  catch (e) { app.innerHTML = `<h1>${esc(username)}</h1><p class="muted">${esc(e.message)}</p>`; return; }
+  const u = d.user;
+  document.title = u.name + ' · Nerva';
+  const item = l => `<a href="/i/${esc(l.itemId)}">${esc(l.name)}</a>${l.qty > 1 ? ` ×${l.returnedAt ? l.qty : l.outstanding}` : ''}`;
+  const late = d.open.filter(l => l.daysLate).length;
+  app.innerHTML = `
+    <h1>${esc(u.name)}</h1>
+    <p class="muted">${esc(u.username)}${u.role === 'admin' ? ' · admin' : ''}${u.gone ? ' · this account no longer exists' : ''}</p>
+    <div class="card"><h2>Has now · ${d.open.length}${late ? ` · <span class="warn">${late} late</span>` : ''}</h2>
+      ${d.open.length ? `<div class="scroll"><table><tr><th>what</th><th>taken</th><th>back by</th><th></th></tr>
+        ${d.open.map(l => `<tr><td>${item(l)}${l.returned ? ` <span class="muted">(${l.returned} already back)</span>` : ''}</td><td>${l.borrowedAt.slice(0, 10)}</td><td>${esc(l.dueAt)}</td>
+          <td class="${l.daysLate ? 'late' : ''}">${l.daysLate ? l.daysLate + ' d late' : ''}</td></tr>`).join('')}</table></div>
+        <div class="btnrow"><a class="btn" href="/loans">Open checkouts</a></div>`
+        : '<p class="muted" style="margin:0">Nothing out. Everything is settled.</p>'}</div>
+    <div class="card"><h2>Returned · ${d.returned.length}</h2>
+      ${d.returned.length ? `<div class="scroll"><table><tr><th>what</th><th>taken</th><th>returned</th><th>checked in by</th></tr>
+        ${d.returned.map(l => `<tr><td>${item(l)}</td><td>${l.borrowedAt.slice(0, 10)}</td>
+          <td class="${l.returnedAt.slice(0, 10) > l.dueAt ? 'late' : ''}">${l.returnedAt.slice(0, 10)}</td><td>${esc(l.returnedTo || '')}</td></tr>`).join('')}</table></div>`
+        : '<p class="muted" style="margin:0">Nothing has come back yet.</p>'}</div>
+    <div class="card"><h2>History</h2><ul class="log" id="history"></ul></div>`;
+  NervaLog.show(document.getElementById('history'), `/api/people/${encodeURIComponent(username)}/history`, { person: u.username }, 20);
+}
+</script>
+</body>
+</html>

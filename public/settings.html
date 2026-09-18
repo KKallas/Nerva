@@ -96,7 +96,7 @@ async function load() {
   addresses = [];
   const add = (url, label, note) => { if (url && !addresses.some(a => a.url === url)) addresses.push({ url, label, note }); };
   add(data.runtime && data.runtime.publicUrl, 'Public link',
-    'Temporary Cloudflare tunnel. Works anywhere, over HTTPS. Anyone who has it can read, edit and delete, and it changes every time you restart the tunnel, so hold off printing labels from it.');
+    'Temporary Cloudflare tunnel. Works anywhere, over HTTPS. Anyone who has it can look things up (changes need a login), and it changes every time you restart the tunnel, so hold off printing labels from it.');
   add(data.baseUrlEnv, 'Configured', 'Set by BASE_URL in .env. Printed QR labels point here.');
   add(data.lanUrl, 'Wi-Fi', 'Reachable from any phone on the same network as this machine. Nothing leaves the building. Plain HTTP, so the phone camera cannot be used from inside the page later.');
   add(location.origin, 'This browser', location.hostname === 'localhost'
@@ -107,7 +107,7 @@ async function load() {
   for (const k of ['labName', 'lowStock', 'loanDays']) $('#' + k).value = data.config[k];
 
   const s = data.status;
-  $('#status').innerHTML = rows([
+  $('#status').innerHTML = !s ? '<p class="muted">Log in to see the status.</p>' : rows([
     ['Items', `${s.items} (${s.sets} sets)`],
     ['Photos', `${s.photos} files, ${(s.photoBytes / 1048576).toFixed(1)} MB`],
     ['Open loans', s.openLoans],

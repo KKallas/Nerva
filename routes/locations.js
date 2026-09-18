@@ -129,6 +129,7 @@ module.exports = function locationRoutes(store) {
     const target = unit || item;
     const shelf = req.body && req.body.shelf ? String(req.body.shelf).toLowerCase() : null;
     if (shelf && !store.resolvePlace(shelf)) return res.status(400).json({ error: 'no such place' });
+    const fromShelf = target.shelf || undefined;               // so the old place's log says it left
     if (shelf) { target.shelf = shelf; target.location = store.placeText(shelf); }
     else {
       delete target.shelf;
@@ -136,7 +137,7 @@ module.exports = function locationRoutes(store) {
       else if (req.body && req.body.clear) target.location = '';
     }
     store.saveItem(item);
-    store.log({ type: 'filed', id: unit ? `${item.id}-${unit.n}` : item.id, shelf, who: req.who || null });
+    store.log({ type: 'filed', id: unit ? `${item.id}-${unit.n}` : item.id, name: unit ? `${item.name} #${unit.n}` : item.name, shelf, fromShelf, who: req.who || null });
     res.json({ ok: true, item });
   });
 

@@ -36,6 +36,7 @@
   .unit img.qr { width:46px; height:46px; flex:none; background:#fff; padding:3px; border-radius:4px; }
   .unit .pic { width:46px; height:46px; flex:none; border-radius:6px; object-fit:cover; background:var(--line); display:block; }
   .unit .n { font-weight:700; font-variant-numeric:tabular-nums; }
+  .unit .say.warn { color:var(--warn); }
   .unit .say { font-size:12px; color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .unit a.pr { color:var(--muted); font-size:13px; text-decoration:none; }
   .unit button { font:inherit; font-size:13px; border:0; background:none; color:var(--muted); cursor:pointer; padding:2px 4px; }
@@ -46,10 +47,10 @@
   .unit.here .say { font-weight:600; }
   .countrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .countrow input { width:110px; font-size:17px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
-  .log { list-style:none; padding:0; margin:10px 0 0; font-size:13px; color:var(--muted); }
-  .log li { padding:2px 0; }
-  .log b { color:var(--fg); font-variant-numeric:tabular-nums; font-weight:600; }
   select { width:100%; font-size:16px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
+  .usedup { display:flex; gap:10px; align-items:flex-start; margin-top:12px; cursor:pointer; }
+  .usedup input { width:20px; height:20px; margin-top:2px; flex:none; }
+  .usedup small { display:block; }
   .badge { font-size:15px; color:var(--muted); font-weight:normal; }
   details.edit { margin:10px 0; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
   details.edit summary { cursor:pointer; color:var(--accent); font-size:14px; }
@@ -65,6 +66,7 @@
 <script src="/parse.js"></script>
 <script src="/paint.js"></script>
 <script src="/app.js"></script>
+<script src="/log.js"></script>
 <script>
 const esc = Nerva.esc;
 Nerva.nav('/items');
@@ -156,7 +158,8 @@ function unitList(i, hereN) {
           ${u.photo ? `<img class="pic" src="/photos/${product}-${u.n}-item.jpg" alt="" loading="lazy">` : '<span class="pic none"></span>'}
           <img class="qr" src="/api/items/${product}-${u.n}/qr.svg" alt="QR for #${u.n}" loading="lazy">
           <span class="n">#${u.n}</span>
-          ${u.n === hereN ? '<span class="say">scanned</span>'
+          ${outOf(i, u.n) ? `<span class="say warn">${esc(outOf(i, u.n))}</span>`
+            : u.n === hereN ? '<span class="say">scanned</span>'
             : u.shelf ? `<span class="say">${esc(u.location || 'kept elsewhere')}</span>` : ''}
         </a>
         <a class="pr" href="/sticker?id=${product}-${u.n}">sticker</a>
@@ -170,6 +173,15 @@ function unitList(i, hereN) {
       <button class="btn" id="untrack">Switch to a plain quantity</button>
     </div></div>`;
 }
+
+// "out with mari until 2026-10-01" for one numbered unit, from the open loans.
+function outOf(i, n) {
+  const l = (i.openLoans || []).find(l => l.itemId === `${i.productId || i.id}-${n}`);
+  return l ? `out with ${l.who} until ${l.dueAt}` : '';
+}
+
+// The loans this page is about: one unit's own, or everything of the product.
+const outHere = i => (i.openLoans || []).filter(l => !i.unit || l.itemId === here(i));
 
 function view(i) {
   const unitPart = i.unit ? ` <span class="badge">#${i.unit.n}</span>` : '';
@@ -193,8 +205,10 @@ function view(i) {
         <input type="number" id="count" min="0" inputmode="numeric" value="${i.quantity ?? 0}">
         <button class="btn primary" id="savecount">Save count</button>
       </div>
-      <ul class="log" id="history"></ul>
-      <p class="muted" style="margin:10px 0 0">One QR for the whole lot, and a quantity. Things lent out one at a time want a number and a label each instead, up to 50 of them.</p>
+      <p class="muted" style="margin:6px 0 0">How many are on the shelf right now. If it says ${i.quantity ?? 0} and you see fewer, type what you see: the number is meant to be corrected by whoever is standing there.</p>
+      <label class="usedup"><input type="checkbox" id="consumable"${i.consumable ? ' checked' : ''}>
+        <span>Gets used up <small class="muted">glue, solder, PLA, tape, screws: we give it out and do not expect it back. Taking some just lowers the count; nobody is chased for it.</small></span></label>
+      <p class="muted" style="margin:10px 0 0">Right now this is one label for the whole lot and a number on the shelf. If every single one should be told apart, like an oscilloscope, a soldering set or anything with a serial number, number them: each gets its own label and can be lent out and found on its own. Up to 50.</p>
       <div class="btnrow"><button class="btn" id="track">Number each one</button></div></div>` : ''}
     <div class="card"><h2>Where it lives</h2>
       <select id="shelf"><option value="">${i.unit
@@ -205,7 +219,8 @@ function view(i) {
     </div>
     ${i.kind === 'set' ? `<div class="card"><h2>Contents</h2><ul>${i.contents.map(c => `<li><a href="/i/${c.itemId}">${esc(c.name)}</a> × ${c.qty}</li>`).join('') || '<li class="muted">empty</li>'}</ul>
       ${i.missing?.length ? `<p class="warn">Missing: ${i.missing.map(m => `${esc(m.itemId)} × ${m.qty}`).join(', ')}</p>` : ''}</div>` : ''}
-    ${i.openLoans?.length ? `<div class="card"><h2>Out with</h2><ul>${i.openLoans.map(l => `<li>${esc(l.who)} × ${l.qty} since ${l.borrowedAt.slice(0, 10)}</li>`).join('')}</ul></div>` : ''}
+    ${outHere(i).length ? `<div class="card"><h2>Out with</h2><ul>${outHere(i).map(l => `<li>${l.itemId !== here(i) ? '#' + esc(l.itemId.split('-').pop()) + ' · ' : ''}${esc(l.who)} × ${l.outstanding ?? l.qty} since ${l.borrowedAt.slice(0, 10)}, <b${l.dueAt < Nerva.day(0) ? ' class="warn"' : ''}>back by ${esc(l.dueAt || '?')}</b></li>`).join('')}</ul>
+      <a class="btn" href="/loans">All checkouts</a></div>` : ''}
     <div class="card"><h2>Label</h2><div class="qrbox">
       <img src="/api/items/${here(i)}/qr.svg" alt="QR code">
       <div><p class="muted" style="margin:0 0 8px">${i.unit ? 'Scanning this opens this one. Stick it on the object itself.'
@@ -216,9 +231,13 @@ function view(i) {
     </div></div>
     <div class="btnrow">
       <button class="btn primary" id="add">+ add to my list</button>
-      <button class="btn danger" id="del">${i.unit ? 'Retire this one' : 'Delete item'}</button>
+      ${i.unit || (Nerva.me && Nerva.me.role === 'admin')   // deleting for good is an admin's; retiring one is anyone's
+        ? `<button class="btn danger" id="del">${i.unit ? 'Retire this one' : 'Delete item'}</button>` : ''}
     </div>
     <p class="err" id="err" hidden></p>
+    <div class="card"><h2>History</h2>
+      <p class="muted" style="margin:0">Where it has been, who took it and who checked it back in.</p>
+      <ul class="log" id="history"></ul></div>
     <p class="muted">Updated ${i.updatedAt ? i.updatedAt.slice(0, 10) : '—'}</p>`;
 }
 
@@ -231,18 +250,6 @@ const scannedUnit = () => Number(new URLSearchParams(location.search).get('u')) 
 
 function fail(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; e.className = 'err'; }
 function flash(msg) { const e = document.getElementById('err'); e.textContent = msg; e.hidden = false; e.className = 'muted'; }
-
-// What has happened to this item lately: counts, photos, filing.
-async function showHistory() {
-  const ul = document.getElementById('history');
-  if (!ul) return;
-  const events = await (await fetch(`/api/items/${item.id}/history?limit=6`)).json().catch(() => []);
-  const said = { count: e => `counted <b>${e.from} → ${e.to}</b>`, photo: () => 'photo added', 'photo-removed': () => 'photo removed',
-    filed: () => 'filed on a shelf', 'units-added': e => `added #${e.units.join(', #')}`, 'unit-removed': e => `retired #${e.unit}`,
-    tracked: e => (e.tracked ? 'started numbering each one' : 'went back to a quantity') };
-  ul.innerHTML = events.filter(e => said[e.type])
-    .map(e => `<li>${e.at.slice(0, 10)} · ${said[e.type](e)}${e.who ? ' · ' + Nerva.esc(e.who) : ''}</li>`).join('');
-}
 
 // The place picker lists every location and shelf, so filing is one tap. On a
 // numbered one, the empty choice means "wherever the product says", which is
@@ -286,12 +293,14 @@ async function call(method, url, body) {
 }
 
 function wire() {
+  NervaLog.show(document.getElementById('history'), `/api/items/${here(item)}/history`, { item: here(item) });
   document.getElementById('add').onclick = () => {
     Nerva.addLine(here(item), item.unit ? `${item.name} #${item.unit.n}` : item.name);
     location.href = '/';
   };
 
-  document.getElementById('del').onclick = async function () {
+  const del = document.getElementById('del');
+  if (del) del.onclick = async function () {
     if (item.unit) {
       if (!confirm(`Retire ${item.name} #${item.unit.n}? Its label stops working and the number is never reused.`)) return;
       this.disabled = true;
@@ -332,7 +341,6 @@ function wire() {
 
   const savecount = document.getElementById('savecount');
   if (savecount) {
-    showHistory();
     savecount.onclick = async function () {
       this.disabled = true;
       try {
@@ -342,6 +350,12 @@ function wire() {
       } catch (e) { this.disabled = false; fail('Not counted: ' + e.message); }
     };
   }
+
+  const consumable = document.getElementById('consumable');
+  if (consumable) consumable.onchange = async function () {
+    try { await call('PUT', `/api/items/${item.id}/consumable`, { consumable: this.checked }); await load(); flash(this.checked ? 'taking it no longer makes a loan' : 'taking it is a loan again'); }
+    catch (e) { this.checked = !this.checked; fail('Not changed: ' + e.message); }
+  };
 
   const shelf = document.getElementById('shelf');
   if (shelf) fillPlaces(shelf);

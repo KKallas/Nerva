@@ -20,14 +20,16 @@ function dirBytes(dir) {
 module.exports = function settingsRoutes(store) {
   const router = express.Router();
 
+  // Anyone may read the settings; where the data lives and the LAN address
+  // are for people who have logged in.
   router.get('/api/settings', (req, res) => {
     const items = [...store.items.values()];
     res.json({
       config: store.config,
       runtime: store.runtime,                       // { publicUrl, startedAt } while a tunnel is up
       baseUrlEnv: process.env.BASE_URL || null,
-      lanUrl: lanUrl(process.env.PORT || 3000),     // reachable from a phone on the same Wi-Fi
-      status: {
+      lanUrl: req.user ? lanUrl(process.env.PORT || 3000) : null,     // reachable from a phone on the same Wi-Fi
+      status: !req.user ? null : {
         items: items.length,
         sets: items.filter(i => i.kind === 'set').length,
         photos: fs.existsSync(store.dirs.photos) ? fs.readdirSync(store.dirs.photos).length : 0,

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { splitUnitId, quantityOf, unitId } = require('../lib/units');
+const { splitUnitId, quantityOf, unitId, numberEach } = require('../lib/units');
 const { parseList } = require('../lib/parse');
 const { makeStore } = require('./helpers');
 
@@ -126,4 +126,14 @@ test('a list shows the product photo, or the first numbered one that has one', (
   assert.equal(by.scope1, 'scope1-2');   // #1 has none, so the first that does
   assert.equal(by.both01, 'both01');     // the product's own wins
   assert.equal(by.none01, null);
+});
+
+test('numbering each one turns the quantity into units, and refuses none or too many', () => {
+  const scope = { id: 'scop3', name: 'Oscilloscope', quantity: 3, consumable: true };
+  assert.equal(numberEach(scope), null);
+  assert.deepEqual(scope.units, [{ n: 1 }, { n: 2 }, { n: 3 }]);
+  assert.equal(scope.nextUnit, 4); assert.equal(scope.tracked, true);
+  assert.equal(scope.consumable, undefined);           // means nothing on a numbered product
+  assert.match(numberEach({ quantity: 0 }), /zero/);
+  assert.match(numberEach({ quantity: 51 }), /too many/);
 });

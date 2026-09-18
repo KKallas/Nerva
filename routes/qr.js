@@ -12,43 +12,48 @@ module.exports = function qrRoutes(store) {
   // .env would otherwise send every label to an address that does not exist.
   // Then a configured address, then whatever host this request came in on.
   const baseUrl = req => (store.runtime.publicUrl || process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  // Express 4 does not catch a rejected async handler: without this, one
+  // failed render would take the whole server down.
+  const safe = fn => (req, res, next) => fn(req, res).catch(next);
+  // a PNG is w*w*4 bytes in memory, so the width must stay sane
+  const width = req => Math.min(2000, Math.max(64, Number(req.query.w) || 512));
 
   // QR of arbitrary text, used by the settings page for this instance's address
-  router.get('/api/qr.svg', async (req, res) => {
+  router.get('/api/qr.svg', safe(async (req, res) => {
     const text = String(req.query.text || '').slice(0, 512);
     if (!text) return res.status(400).send('text required');
     const svg = await QRCode.toString(text, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
     res.type('image/svg+xml').send(svg);
-  });
+  }));
 
   // A shelf's QR opens the shelf page, listing what belongs there.
-  router.get('/api/places/:id/qr.svg', async (req, res) => {
+  router.get('/api/places/:id/qr.svg', safe(async (req, res) => {
     const id = String(req.params.id).toLowerCase();
     if (!store.resolvePlace(id)) return res.status(404).send('no such place');
     const svg = await QRCode.toString(`${baseUrl(req)}/l/${id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
     res.type('image/svg+xml').set('Cache-Control', 'public, max-age=3600').send(svg);
-  });
+  }));
 
-  router.get('/api/places/:id/qr.png', async (req, res) => {
+  router.get('/api/places/:id/qr.png', safe(async (req, res) => {
     const id = String(req.params.id).toLowerCase();
     if (!store.resolvePlace(id)) return res.status(404).send('no such place');
-    const png = await QRCode.toBuffer(`${baseUrl(req)}/l/${id}`, { margin: 1, width: Number(req.query.w) || 512 });
+    const png = await QRCode.toBuffer(`${baseUrl(req)}/l/${id}`, { margin: 1, width: width(req) });
     res.type('image/png').set('Cache-Control', 'public, max-age=3600').send(png);
-  });
+  }));
 
-  router.get('/api/items/:id/qr.svg', async (req, res) => {
+  router.get('/api/items/:id/qr.svg', safe(async (req, res) => {
     const id = String(req.params.id).toLowerCase();
     if (!store.resolve(id)) return res.status(404).send('no such item');
     const svg = await QRCode.toString(`${baseUrl(req)}/i/${id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
     res.type('image/svg+xml').set('Cache-Control', 'public, max-age=3600').send(svg);
-  });
+  }));
 
-  router.get('/api/items/:id/qr.png', async (req, res) => {
+  router.get('/api/items/:id/qr.png', safe(async (req, res) => {
     const id = String(req.params.id).toLowerCase();
     if (!store.resolve(id)) return res.status(404).send('no such item');
-    const png = await QRCode.toBuffer(`${baseUrl(req)}/i/${id}`, { margin: 1, width: Number(req.query.w) || 512 });
+    const png = await QRCode.toBuffer(`${baseUrl(req)}/i/${id}`, { margin: 1, width: width(req) });
     res.type('image/png').set('Cache-Control', 'public, max-age=3600').send(png);
-  });
+  }));
 
   // /labels?ids=a,b,c  – an A4 sheet to print and stick on shelves and boxes.
   router.get('/labels', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'labels.html')));

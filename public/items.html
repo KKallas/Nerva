@@ -17,13 +17,20 @@
   h2.group { font-size:14px; color:var(--muted); margin:18px 0 4px; text-transform:uppercase; letter-spacing:.04em; display:flex; justify-content:space-between; }
   .flags { font-size:12px; }
   .flags b { color:var(--warn); font-weight:600; }
-  .newform { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
-  .newform input[type=text] { flex:1 1 100%; min-width:0; }   /* the name gets its own row */
-  .newform label { font-size:14px; }
-  .newform button { flex:none; padding:10px 14px; }
-  .newform input[type=number] { width:84px; flex:none; font-size:16px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
-  .newform .err { flex-basis:100%; color:var(--bad); font-size:14px; margin:0; }
-  .added { flex-basis:100%; list-style:none; margin:2px 0 0; padding:0; font-size:14px; }
+  .newform { display:flex; flex-direction:column; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 12px; margin-top:10px; }
+  .newform .f { display:flex; flex-direction:column; gap:4px; }
+  .newform .f > span { font-size:14px; font-weight:600; }
+  .newform .f small, .newform .kind small { display:block; color:var(--muted); font-size:13px; line-height:1.35; }
+  .newform input[type=text] { width:100%; min-width:0; }
+  .newform input[type=number] { width:96px; font-size:16px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
+  .newform .kind { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border:1px solid var(--line); border-radius:10px; cursor:pointer; }
+  .newform .kind:has(:checked) { border-color:var(--accent); }
+  .newform .kind input { width:20px; height:20px; margin-top:1px; flex:none; }
+  .newform .kind b { font-weight:600; font-size:15px; }
+  .newform .btnrow { display:flex; gap:8px; }
+  .newform button { padding:10px 14px; }
+  .newform .err { color:var(--bad); font-size:14px; margin:0; }
+  .added { list-style:none; margin:0; padding:0; font-size:14px; }
   .added li { padding:3px 0; color:var(--muted); }
   .added a { color:var(--accent); text-decoration:none; font-family:ui-monospace,Menlo,monospace; }
 </style>
@@ -43,11 +50,24 @@
   </label>
 </div>
 <form class="newform" id="newform" hidden>
-  <input type="text" id="newname" placeholder="What is it? e.g. M5 bolts 20 mm" autocomplete="off">
-  <label class="muted" for="newqty">how many</label>
-  <input type="number" id="newqty" min="0" value="1" inputmode="numeric">
-  <button class="btn primary" type="submit">Add</button>
-  <button class="btn" type="button" id="closenew">done</button>
+  <label class="f"><span>Name</span>
+    <input type="text" id="newname" placeholder="e.g. M5 bolts 20 mm, or Multimeter UNI-T UT61E" autocomplete="off">
+    <small>Write it the way people will search for it: what it is, then the size or model. One name for the whole kind of thing, not for each piece: "M5 bolts 20 mm", not "bolt".</small></label>
+  <label class="f"><span>How many</span>
+    <input type="number" id="newqty" min="0" value="1" inputmode="numeric">
+    <small>What is on the shelf right now. A rough number is fine: anyone can correct it later by counting.</small></label>
+  <div class="f"><span>What kind of thing is it?</span>
+    <label class="kind"><input type="radio" name="newkind" value="lent" checked>
+      <span><b>Lent out and brought back</b><small>Tools, cables, boards, parts kept in a box. Taking some makes a loan under your name until you bring them back. One label for the whole box.</small></span></label>
+    <label class="kind"><input type="radio" name="newkind" value="used">
+      <span><b>Gets used up</b><small>Glue, solder, PLA, tape, screws. We give it out and do not expect it back: taking some just lowers the count, and nobody is chased for it.</small></span></label>
+    <label class="kind"><input type="radio" name="newkind" value="each">
+      <span><b>Number each one</b><small>Oscilloscopes, soldering sets, anything with a serial number. Every single one gets its own number and its own label, so you can tell which one is out and with whom. Up to 50.</small></span></label>
+  </div>
+  <div class="btnrow">
+    <button class="btn primary" type="submit">Add</button>
+    <button class="btn" type="button" id="closenew">done</button>
+  </div>
   <p class="err" id="newerr" hidden></p>
   <ul class="added" id="added"></ul>
 </form>
@@ -65,6 +85,7 @@ const FILTERS = {
   all:    { label: 'all',          test: () => true },
   set:    { label: 'sets',         test: i => i.kind === 'set' },
   low:    { label: 'low stock',    test: i => (i.quantity ?? 0) <= Nerva.config.lowStock },
+  out:    { label: 'out on loan',  test: i => !!(i.out && i.out.length) },
   nophoto:{ label: 'no photo',     test: i => !i.photo },
   noloc:  { label: 'no location',  test: i => !i.location },
 };
@@ -141,9 +162,11 @@ form.onsubmit = async e => {
   $('#newerr').hidden = true;
   if (!name) { $('#newname').value = ''; $('#newname').focus(); return; }
   try {
-    const d = await Nerva.api('POST', '/api/items', { name, quantity: $('#newqty').value });
+    const kind = form.newkind.value;
+    const d = await Nerva.api('POST', '/api/items', { name, quantity: $('#newqty').value, consumable: kind === 'used', tracked: kind === 'each' });
+    const n = (d.item.units || []).length;
     $('#added').insertAdjacentHTML('afterbegin',
-      `<li><a href="/i/${d.item.id}">[${d.item.id}]</a> ${esc(d.item.name)} · <a href="/i/${d.item.id}">open</a> · <a href="/sticker?id=${d.item.id}">sticker</a></li>`);
+      `<li><a href="/i/${d.item.id}">[${d.item.id}]</a> ${esc(d.item.name)}${n ? ` · numbered #1–#${n}` : ''} · <a href="/i/${d.item.id}">open</a> · <a href="${n ? `/labels?ids=${d.item.id}` : `/sticker?id=${d.item.id}`}">${n ? 'labels' : 'sticker'}</a></li>`);
     $('#newname').value = '';
     $('#newname').focus();
     await Nerva.refreshCatalogue();

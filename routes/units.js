@@ -3,11 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { unitId, quantityOf } = require('../lib/units');
+const { unitId, quantityOf, numberEach, MAX_UNITS } = require('../lib/units');
 
 // Numbering is for things lent out one at a time: scopes, power supplies,
 // soldering sets. Past a few dozen you want a quantity, not a label per screw.
-const MAX_UNITS = 50;
 
 module.exports = function unitRoutes(store) {
   const router = express.Router();
@@ -27,12 +26,9 @@ module.exports = function unitRoutes(store) {
     if (tracked === !!item.tracked) return res.json({ ok: true, item });
 
     if (tracked) {
-      const n = item.quantity ?? 0;
-      if (n < 1) return res.status(400).json({ error: 'nothing to number: the quantity is zero' });
-      if (n > MAX_UNITS) return res.status(400).json({ error: `${n} is too many to number one by one (limit ${MAX_UNITS}). Things in this quantity are counted, not labelled individually.` });
-      item.tracked = true;
-      item.units = Array.from({ length: n }, (_, i) => ({ n: i + 1 }));
-      item.nextUnit = n + 1;
+      if (loansOn(item.id).length) return res.status(409).json({ error: 'some are out on loan: check them in first, so every one gets a number' });
+      const problem = numberEach(item);
+      if (problem) return res.status(400).json({ error: problem });
     } else {
       const out = (item.units || []).filter(u => loansOn(unitId(item.id, u.n)).length);
       if (out.length) return res.status(409).json({ error: `units ${out.map(u => '#' + u.n).join(', ')} are out on loan` });

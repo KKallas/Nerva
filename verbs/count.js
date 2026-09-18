@@ -19,7 +19,7 @@ module.exports = async function count(lines, who, store) {
     const to = line.qty;
     item.quantity = to;
     store.saveItem(item);
-    store.log({ type: 'count', id: item.id, from, to, delta: to - from, who: who ? who.email : null });
+    store.log({ type: 'count', id: item.id, name: item.name, was: from, to, delta: to - from, place: item.shelf || undefined, who: who || null });
     return { n: line.n, line: line.raw, ok: true,
       message: `${item.name} · ${from} → ${to}${to === from ? ' (no change)' : ''}`,
       item: { id: item.id, name: item.name, quantity: to, location: item.location || '', kind: item.kind || 'item' } };

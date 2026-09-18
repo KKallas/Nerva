@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:16px auto; max-width:420px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:12px 0 4px; }
+  form .btn { width:100%; margin-top:16px; font-size:17px; }
+  .err { color:var(--bad); font-size:14px; margin:10px 0 0; }
+  .hint { font-size:14px; color:var(--muted); margin:14px 0 0; }
+  .show { font-size:14px; color:var(--muted); display:flex; gap:6px; align-items:center; margin-top:8px; }
+</style>
+</head>
+<body>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<div class="card">
+  <form id="form" autocomplete="on">
+    <h1 id="title">Log in</h1>
+    <p class="muted" id="sub">With the username you were given, or scan your card with your phone camera.</p>
+    <div id="nameField">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </div>
+    <label for="password" id="pwLabel">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+    <div id="repeatField" hidden>
+      <label for="repeat">The same again</label>
+      <input type="password" id="repeat" autocomplete="new-password">
+    </div>
+    <label class="show"><input type="checkbox" id="show"> show password</label>
+    <button class="btn primary" id="go">Log in</button>
+    <p class="err" id="err" hidden></p>
+  </form>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+Nerva.nav('');
+const params = new URLSearchParams(location.search);
+const card = params.get('card');
+// only ever go back somewhere on this site ("/\evil.com" reads as "//evil.com")
+const next = /^\/(?![\/\\])/.test(params.get('next') || '') ? params.get('next') : '/';
+let firstTime = false;
+
+const fail = msg => { $('#err').textContent = msg; $('#err').hidden = !msg; };
+
+if (card) cardMode();
+async function cardMode() {
+  $('#nameField').hidden = true;
+  $('#username').required = false;
+  $('#sub').textContent = '…';
+  let who;
+  try { who = await Nerva.api('GET', '/api/login/card/' + encodeURIComponent(card)); }
+  catch (e) { $('#title').textContent = 'This card does not work'; $('#sub').textContent = e.message; $('#go').hidden = true; return; }
+  // Already logged in as this person on this device: the card just opens the app.
+  const me = await Nerva.whoami();
+  if (me && me.username === who.username && who.hasPassword) return location.replace(next);
+  // lets a password manager file the password under the right name
+  $('#username').value = who.username;
+  firstTime = !who.hasPassword;
+  $('#title').textContent = firstTime ? `Welcome, ${who.name}` : who.name;
+  $('#sub').textContent = firstTime
+    ? `Choose a password. From now on you log in as "${who.username}", or with this card, and that password.`
+    : `Logging in as "${who.username}".`;
+  if (firstTime) {
+    $('#pwLabel').textContent = 'Choose a password (at least 6 characters)';
+    $('#password').autocomplete = 'new-password';
+    $('#repeatField').hidden = false;
+    $('#go').textContent = 'Set password and log in';
+  }
+  $('#password').focus();
+}
+
+$('#show').onchange = e => { for (const id of ['password', 'repeat']) $('#' + id).type = e.target.checked ? 'text' : 'password'; };
+
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  fail('');
+  const password = $('#password').value;
+  if (firstTime && password !== $('#repeat').value) return fail('The two passwords are not the same.');
+  $('#go').disabled = true;
+  try {
+    const body = card ? { card, password } : { username: $('#username').value, password };
+    const d = await Nerva.api('POST', '/api/login', body);
+    Nerva.setMe(d.user);
+    location.replace(next);
+  } catch (err) {
+    $('#go').disabled = false;
+    fail(err.message.replace(/^./, c => c.toUpperCase()) + '.');
+  }
+};
+</script>
+</body>
+</html>

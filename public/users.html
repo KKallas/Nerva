@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users · Nerva</title>
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/app.css">
+<style>
+  h1 { font-size:20px; margin:4px 0 8px; }
+  .newform { display:flex; gap:8px; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin:10px 0; }
+  .newform input[type=text] { flex:1 1 180px; min-width:0; }
+  .newform .err { flex-basis:100%; color:var(--bad); font-size:14px; margin:0; }
+  .user { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .user .top { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .user .name { font-weight:600; }
+  .user .un { font-family:ui-monospace,Menlo,monospace; font-size:14px; color:var(--muted); }
+  .user .state { font-size:13px; color:var(--muted); margin-top:2px; }
+  .user .state b { color:var(--warn); font-weight:600; }
+  .user .btnrow { margin-top:8px; gap:6px; }
+  .user .btn { font-size:13px; padding:6px 10px; }
+  .user.fresh { border-color:var(--accent); }
+</style>
+</head>
+<body>
+<script src="/parse.js"></script>
+<script src="/app.js"></script>
+<h1>Users</h1>
+<p class="muted" style="margin:0">Each person gets a username and a printed card. The first time they scan the card they choose a password. After that they log in with the username or the card, and the password.</p>
+<form class="newform" id="newform">
+  <input type="text" id="username" placeholder="username, e.g. mari" autocapitalize="none" spellcheck="false" required>
+  <input type="text" id="name" placeholder="full name">
+  <select id="role"><option value="user">user</option><option value="admin">admin</option></select>
+  <button class="btn primary" id="add">Add</button>
+  <p class="err" id="err" hidden></p>
+</form>
+<div class="btnrow"><a class="btn" id="printWaiting" href="#">Print cards for everyone without a password</a></div>
+<div class="rows" id="list"><p class="muted">…</p></div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = Nerva.esc;
+Nerva.nav('');
+let users = [];
+let fresh = null;
+const fail = msg => { $('#err').textContent = msg || ''; $('#err').hidden = !msg; };
+
+load();
+async function load() {
+  try { users = await Nerva.api('GET', '/api/users'); }
+  catch (e) { $('#list').innerHTML = `<p class="muted">${esc(e.message)}. <a href="/login?next=/users">Log in as an admin</a>.</p>`; return; }
+  const waiting = users.filter(u => !u.hasPassword);
+  $('#printWaiting').href = '/cards?ids=' + waiting.map(u => u.id).join(',');
+  $('#printWaiting').hidden = !waiting.length;
+  $('#list').innerHTML = users.map(row).join('');
+}
+
+function row(u) {
+  const self = Nerva.me && Nerva.me.id === u.id;
+  const seen = u.lastSeen ? `last logged in ${u.lastSeen.slice(0, 10)}` : 'never logged in';
+  return `<div class="user${u.id === fresh ? ' fresh' : ''}" data-id="${u.id}">
+    <div class="top"><span class="name">${esc(u.name)}</span><span class="un">${esc(u.username)}</span>
+      ${u.role === 'admin' ? '<span class="tag">admin</span>' : ''}${u.builtin ? '<span class="tag">built in</span>' : ''}${self ? '<span class="tag">you</span>' : ''}</div>
+    <div class="state">${u.hasPassword ? 'password set' : '<b>no password yet</b>: their card will ask for one'} · ${seen}</div>
+    <div class="btnrow">
+      <a class="btn" href="/u/${esc(u.username)}">Loans and history</a>
+      <a class="btn" href="/cards?ids=${u.id}">Print card</a>
+      <button class="btn" data-copy="${esc(u.loginUrl)}" title="the same link the card holds, for someone without a camera">Copy login link</button>
+      <button class="btn" data-act="rename">Rename</button>
+      ${u.builtin ? '' : `<button class="btn" data-act="role">${u.role === 'admin' ? 'Make user' : 'Make admin'}</button>`}
+      ${u.hasPassword ? '<button class="btn" data-act="reset">Reset password</button>' : ''}
+      <button class="btn" data-act="card">New card</button>
+      ${u.builtin || self ? '' : '<button class="btn danger" data-act="delete">Delete</button>'}
+    </div></div>`;
+}
+
+$('#newform').onsubmit = async e => {
+  e.preventDefault();
+  fail('');
+  $('#add').disabled = true;
+  try {
+    const d = await Nerva.api('POST', '/api/users', { username: $('#username').value, name: $('#name').value, role: $('#role').value });
+    fresh = d.user.id;
+    $('#username').value = $('#name').value = '';
+    await load();
+    $('#username').focus();
+  } catch (err) { fail(err.message); }
+  $('#add').disabled = false;
+};
+
+// One tap each, with a confirm where something stops working.
+const ACTIONS = {
+  rename: u => { const name = prompt('Full name', u.name); return name === null ? null : ['PUT', `/api/users/${u.id}`, { name }]; },
+  role: u => ['PUT', `/api/users/${u.id}`, { role: u.role === 'admin' ? 'user' : 'admin' }],
+  reset: u => confirm(`Clear ${u.name}'s password? They are logged out everywhere, and their card asks for a new password.`)
+    ? ['POST', `/api/users/${u.id}/reset`] : null,
+  card: u => confirm(`Make a new card for ${u.name}? The old printed card stops working. Print the new one afterwards.`)
+    ? ['POST', `/api/users/${u.id}/card`] : null,
+  delete: u => confirm(`Delete ${u.name} (${u.username})? The history keeps their name.`)
+    ? ['DELETE', `/api/users/${u.id}`] : null,
+};
+$('#list').addEventListener('click', async e => {
+  const c = e.target.closest('[data-copy]');
+  if (c) {
+    try { await navigator.clipboard.writeText(c.dataset.copy); c.textContent = 'Copied'; }
+    catch { prompt('Copy this link', c.dataset.copy); }
+    setTimeout(() => { c.textContent = 'Copy login link'; }, 1500);
+    return;
+  }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const u = users.find(x => x.id === b.closest('.user').dataset.id);
+  const call = ACTIONS[b.dataset.act](u);
+  if (!call) return;
+  b.disabled = true;
+  try { await Nerva.api(...call); fresh = u.id; await load(); }
+  catch (err) { b.disabled = false; alert(err.message); }
+});
+</script>
+</body>
+</html>

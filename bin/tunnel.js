@@ -83,7 +83,7 @@ async function announce(url) {
   console.log(`\n${await qr(url)}`);
   console.log(`  Public address:  ${url}`);
   console.log(`  Works anywhere, over HTTPS. Settings: ${url}/settings`);
-  console.log('\n  Anyone who has this address can read, edit and delete. It dies on Ctrl-C,');
+  console.log('\n  Anyone who has this address can look things up; changes need a login. It dies on Ctrl-C,');
   console.log('  and the next run gets a different one, so do not print labels from it yet.\n');
 }
 

@@ -7,6 +7,7 @@ function serve(store) {
   const app = express();
   app.use(require('../routes/locations')(store));
   app.use(require('../routes/count')(store));
+  app.use(require('../routes/history')(store));
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}`;
   const call = async (method, url, body) => {
@@ -72,6 +73,7 @@ test('counting records the change and refuses numbered items', async () => {
   const history = (await call('GET', '/api/items/bolts1/history')).body;
   assert.equal(history[0].type, 'count');
   assert.equal(history[0].delta, -13);
+  assert.equal(history[0].was, 200);
   close();
 });
 

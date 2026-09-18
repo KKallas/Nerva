@@ -29,6 +29,18 @@
   .opt .id { font-family:ui-monospace,Menlo,monospace; color:var(--muted); font-size:13px; flex:none; }
   .opt .nm { flex:1; min-width:0; }
   .opt .nm small { display:block; color:var(--muted); }
+  /* what is already out, shown while the list is being built */
+  .away { margin-top:6px; font-size:14px; color:var(--warn); }
+  .away div { padding:1px 0; }
+  .confirm { background:var(--card); border:1px solid var(--accent); border-radius:10px; padding:12px; }
+  .confirm h3 { margin:0 0 8px; font-size:16px; }
+  .confirm .cl { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px solid var(--line); font-size:15px; }
+  .confirm .cl small { color:var(--muted); text-align:right; }
+  .confirm .cl.no small { color:var(--warn); }
+  .confirm label { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  .confirm input[type=date], .confirm input[type=number] { font:inherit; font-size:16px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
+  .confirm input[type=number] { width:5em; text-align:right; }
+  .confirm .cl .was { color:var(--muted); font-size:13px; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -40,12 +52,13 @@
 <section class="list">
   <h2>List</h2>
   <textarea id="list" placeholder="one line per item: id, id x3, or a name&#10;scan or tap + to add lines"></textarea>
+  <div class="away" id="away"></div>
   <div class="verbs">
-    <button id="scan" disabled title="camera scanning arrives in step 2">📷 scan</button>
+    <button id="scan" title="scan labels with the camera">📷 scan</button>
     <button data-verb="find" class="primary">find</button>
-    <button data-verb="out" disabled title="step 3">out</button>
-    <button data-verb="in" disabled title="step 3">in</button>
-    <button data-verb="count" disabled title="step 3">count</button>
+    <button data-verb="out">out</button>
+    <button data-verb="in" id="verbin" hidden title="check things back in (admin)">in</button>
+    <button data-verb="count" title="the shelf actually has this many">count</button>
     <button id="clear">clear</button>
   </div>
   <div class="out" id="out"></div>
@@ -54,6 +67,7 @@
 <script src="/parse.js"></script>
 <script src="/search.js"></script>
 <script src="/app.js"></script>
+<script src="/scan.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = Nerva.esc;
@@ -61,8 +75,15 @@ Nerva.nav('/');
 
 Nerva.loadCatalogue((items, how) => {
   Nerva.status(how === 'empty' ? 'offline, no catalogue yet' : `${items.length} items${how === 'cached' ? ' (cached)' : how === 'offline' ? ' (offline)' : ''}`);
-  if (how !== 'cached') render();
+  // the cached copy arrives before the list below exists, and both are drawn
+  // once further down anyway; only a fresh catalogue needs drawing again
+  if (how !== 'cached') { render(); showAway(); }
 });
+
+// Checking in is the admin's: nobody else is shown the button.
+const showVerbs = () => { $('#verbin').hidden = !(Nerva.me && Nerva.me.role === 'admin'); };
+showVerbs();
+window.addEventListener('nerva:me', showVerbs);
 
 // ---- search ----
 $('#q').addEventListener('input', render);
@@ -80,20 +101,116 @@ Nerva.wireAdd($('#results'));
 const ta = $('#list');
 ta.value = Nerva.listText();
 ta.addEventListener('input', () => Nerva.setList(ta.value));
-window.addEventListener('nerva:list', () => { if (ta.value !== Nerva.listText()) ta.value = Nerva.listText(); });
+window.addEventListener('nerva:list', () => { if (ta.value !== Nerva.listText()) ta.value = Nerva.listText(); showAway(); });
 $('#clear').onclick = () => { ta.value = ''; Nerva.setList(''); $('#out').innerHTML = ''; };
 
-document.querySelectorAll('[data-verb]').forEach(btn => btn.onclick = () => file(btn.dataset.verb));
-async function file(verb) {
+// What the cached catalogue says about one line of the list: its name, how
+// many, and whether it is out already and until when. Local, so it works at
+// the shelf without a connection. `no` means the line will not go through.
+function lineInfo(entry) {
+  const m = /^([a-z0-9]{4,8})-(\d{1,4})$/.exec(entry.id || '');
+  const item = entry.id && Nerva.catalogue.find(c => c.id === (m ? m[1] : entry.id));
+  const unitN = item && m ? Number(m[2]) : null;
+  if (!item || (unitN && !(item.units || []).includes(unitN))) return { name: entry.raw.trim(), say: 'looked up when you confirm' };
+  const away = Nerva.outText(item, unitN);
+  if (unitN) return { name: `${item.name} #${unitN}`, away, no: !!away, say: away || `until the date below` };
+  if (item.tracked) return { name: item.name, away, say: 'numbered: you will be asked which one' + (away ? ` · ${away}` : '') };
+  if (item.consumable) return { name: `${item.name} x${entry.qty}`, used: true, say: 'used up, not expected back' };
+  return { name: `${item.name} x${entry.qty}`, away, say: `${item.quantity} on the shelf` + (away ? ` · ${away}` : '') };
+}
+// Under the list, as it is built: whatever on it is already out, and until when.
+function showAway() {
+  $('#away').innerHTML = NervaParse.parseList(ta.value).map(lineInfo).filter(i => i.away)
+    .map(i => `<div>${esc(i.name)} · ${esc(i.away)}</div>`).join('');
+}
+showAway();
+
+document.querySelectorAll('[data-verb]').forEach(btn => btn.onclick = () => {
+  if (!NervaParse.parseList(ta.value).length) { $('#out').innerHTML = '<p class="muted">The list is empty.</p>'; return; }
+  if (btn.dataset.verb === 'out') confirmOut(); else if (btn.dataset.verb === 'count') confirmCount(); else file(btn.dataset.verb);
+});
+
+// Scanning appends "[id] Name" per label, like tapping +. A numbered one's
+// label carries its own id. Unknown ids are refused on the spot rather than
+// filed as a name the server would not find.
+if (!NervaScan.supported()) { $('#scan').disabled = true; $('#scan').title = 'no camera in this browser'; }
+$('#scan').onclick = () => NervaScan.scan(id => {
+  const m = /^([a-z0-9]{4,8})-(\d{1,4})$/.exec(id);
+  const item = Nerva.catalogue.find(c => c.id === (m ? m[1] : id));
+  if (!item || (m && !(item.units || []).includes(Number(m[2])))) return false;
+  const name = m ? `${item.name} #${m[2]}` : item.name;
+  Nerva.addLine(id, name);
+  return name;
+});
+
+// Counting asks once too: every counted product on the list with what the
+// shelf said last time and a box for what it says now. A line with no
+// quantity written starts at the old number, so confirming changes nothing
+// you did not type. Numbered ones and unknown lines go through as written.
+function confirmCount() {
+  if (!Nerva.me) return Nerva.toLogin();
+  const entries = NervaParse.parseList(ta.value);
+  const rows = entries.map(e => {
+    const item = e.id && !/-/.test(e.id) && Nerva.catalogue.find(c => c.id === e.id);
+    if (!item || item.tracked) return { e, ...lineInfo(e), fixed: true, say: item ? 'numbered: not counted' : lineInfo(e).say };
+    const typed = /\bx\d+\b/i.test(e.raw);
+    return { e, item, name: item.name, was: item.quantity ?? 0, now: typed ? e.qty : (item.quantity ?? 0) };
+  });
+  $('#out').innerHTML = `<div class="confirm"><h3>Count: the shelf has this many</h3>
+    ${rows.map((r, i) => r.fixed
+      ? `<div class="cl${r.no ? ' no' : ''}"><span>${esc(r.name)}</span><small>${esc(r.say)}</small></div>`
+      : `<div class="cl"><span>${esc(r.name)} <span class="was">was ${r.was}</span></span><input type="number" min="0" step="1" inputmode="numeric" data-i="${i}" value="${r.now}"></div>`).join('')}
+    <div class="btnrow"><button class="btn primary" id="docount">Set counts</button><button class="btn" id="nocount">Not yet</button></div></div>`;
+  const first = $('#out input'); if (first) first.select();
+  $('#nocount').onclick = () => { $('#out').innerHTML = ''; };
+  $('#docount').onclick = () => {
+    // rewrite the list as "[id] Name xN" with the numbers typed, then file it
+    const lines = ta.value.split('\n');
+    $('#out').querySelectorAll('input[data-i]').forEach(inp => {
+      const r = rows[Number(inp.dataset.i)];
+      const n = Math.max(0, Math.round(Number(inp.value) || 0));
+      lines[r.e.n - 1] = `${NervaParse.formatLine(r.item.id, r.item.name)} x${n}`;
+    });
+    ta.value = lines.join('\n');
+    Nerva.setList(ta.value);
+    file('count');
+  };
+}
+
+// Taking things is saved under your name, so it asks once: this list, back by
+// this date. The date starts at today plus the lab's loan period.
+function confirmOut() {
+  if (!Nerva.me) return Nerva.toLogin();   // the list is kept; it is waiting when you come back
+  const lines = NervaParse.parseList(ta.value).map(lineInfo);
+  const lent = lines.some(l => !l.used);
+  $('#out').innerHTML = `<div class="confirm"><h3>Check out as ${esc(Nerva.me.name)}</h3>
+    ${lines.map(l => `<div class="cl${l.no ? ' no' : ''}"><span>${esc(l.name)}</span><small>${esc(l.say)}</small></div>`).join('')}
+    ${lent ? `<label>Bring back by <input type="date" id="due" min="${Nerva.day(0)}" value="${Nerva.day(Nerva.config.loanDays || 14)}"></label>` : ''}
+    <div class="btnrow"><button class="btn primary" id="doout">Confirm checkout</button><button class="btn" id="noout">Not yet</button></div></div>`;
+  $('#noout').onclick = () => { $('#out').innerHTML = ''; };
+  $('#doout').onclick = () => file('out', { due: lent ? $('#due').value : '' });
+}
+
+async function file(verb, opts) {
   const out = $('#out');
-  if (!NervaParse.parseList(ta.value).length) { out.innerHTML = '<p class="muted">The list is empty.</p>'; return; }
+  const sent = ta.value;
   out.innerHTML = '<p class="muted">…</p>';
   try {
-    const r = await fetch('/api/file?verb=' + verb, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: ta.value });
-    const d = await r.json();
-    if (!r.ok) { out.innerHTML = `<div class="r bad">${esc(d.error)}</div>`; return; }
+    const d = await Nerva.file(verb, sent, opts);
     out.innerHTML = d.lines.map(renderResult).join('') || '<p class="muted">Nothing to do.</p>';
-  } catch (e) { out.innerHTML = '<div class="r bad">Could not reach the server (offline?). The list is kept.</div>'; }
+    if (verb === 'find') return;
+    // Filed lines leave the list; the ones that failed stay for another try.
+    const failed = new Set(d.lines.filter(l => !l.ok).map(l => l.n));
+    if (ta.value === sent) {
+      ta.value = sent.split('\n').filter((_, i) => failed.has(i + 1)).join('\n');
+      Nerva.setList(ta.value);
+    }
+    if (verb === 'out' && d.lines.some(l => l.checkout)) out.insertAdjacentHTML('beforeend', '<p class="muted">Saved. <a href="/loans">Your checkouts</a></p>');
+    await Nerva.refreshCatalogue();
+    render(); showAway();
+  } catch (e) {
+    out.innerHTML = `<div class="r bad">${e instanceof TypeError ? 'Could not reach the server (offline?). The list is kept.' : esc(e.message)}</div>`;
+  }
 }
 // The line as the user wrote it, with its id turned into a link rather than
 // repeated in front of it.

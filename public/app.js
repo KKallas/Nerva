@@ -29,26 +29,57 @@ window.Nerva = (function () {
   const addLine = (id, name, qty) => append(NervaParse.formatLine(id, name, qty));
   const listCount = () => (window.NervaParse ? NervaParse.parseList(listText()).length : 0);
 
+  // --- who is logged in: remembered, so pages know it offline, refreshed on every load ---
+  let me = null;
+  try { me = JSON.parse(get('nerva.me') || 'null'); } catch {}
+  const setMe = u => { me = u || null; set('nerva.me', JSON.stringify(me)); showWho(); window.dispatchEvent(new Event('nerva:me')); };
+  const whoami = () => fetch('/api/me').then(r => r.json()).then(d => { setMe(d.user); return me; }).catch(() => me);
+  // Nothing typed is lost by leaving: the list lives in localStorage.
+  const toLogin = () => { location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); };
+  function showWho() {
+    const el = document.getElementById('navwho'); if (!el) return;
+    el.href = me ? '/account' : '/login';
+    el.textContent = me ? me.name : 'Log in';
+    if (['/account', '/login', '/users'].includes(location.pathname)) el.setAttribute('aria-current', 'page');
+  }
+
   // --- nav, same on every page ---
   function nav(current) {
-    const tabs = [['/', 'Checkout'], ['/items', 'Items'], ['/locations', 'Locations'], ['/settings', '⚙︎']];
+    const tabs = [['/', 'Checkout'], ['/items', 'Items'], ['/locations', 'Locations'], ['/loans', 'Loans'], ['/help', '?'], ['/settings', '⚙︎']];
     document.body.insertAdjacentHTML('afterbegin', `<nav class="tabs">${tabs.map(([href, label, soon]) =>
       `<a href="${href}"${href === current ? ' aria-current="page"' : ''}${soon ? ' class="soon" title="coming later"' : ''}>${label}${
-        href === '/' && listCount() ? ` <span class="tag">${listCount()}</span>` : ''}</a>`).join('')}<span class="grow"></span><span class="status" id="navstatus"></span></nav>`);
+        href === '/' && listCount() ? ` <span class="tag">${listCount()}</span>` : ''}</a>`).join('')}<span class="grow"></span><span class="status" id="navstatus"></span><a class="who" id="navwho"></a></nav>`);
+    showWho();
+    whoami();
   }
   const status = t => { const el = document.getElementById('navstatus'); if (el) el.textContent = t; };
+
+  // A local day as "2026-10-01", `offset` days from today: return dates have no time.
+  function day(offset) {
+    const d = new Date(); d.setDate(d.getDate() + (offset || 0));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  // What the catalogue knows is on loan, in words: "out with mari until
+  // 2026-10-01" for a numbered one, "3 out, back 2026-10-01" for a quantity.
+  // The same sentence as outNote in lib/loans.js.
+  function outText(i, unitN) {
+    const out = (i.out || []).filter(o => !unitN || o.id === `${i.id}-${unitN}`);
+    if (!out.length) return '';
+    if (unitN) return `out with ${out[0].who} until ${out[0].due}`;
+    return `${out.reduce((n, o) => n + o.qty, 0)} out, ${out.length > 1 ? 'first ' : ''}back ${out[0].due}`;
+  }
 
   // opts.hideLocation: the location is already the group heading, do not repeat it.
   function itemRow(i, opts) {
     const o = opts || {};
     const qty = `<span class="qty">${i.quantity}</span>${o.hideLocation ? ' in stock' : ''}`;
-    const bits = [o.hideLocation ? '' : (esc(i.location) || '<i>no location</i>'), qty, o.extra]
+    const bits = [o.hideLocation ? '' : (esc(i.location) || '<i>no location</i>'), qty, esc(outText(i)), o.extra]
       .filter(Boolean).join(' · ');
     // the thing itself, not where it lives: a list is for recognising things
     return `<a class="row" href="/i/${i.id}">
       ${i.previewId ? `<img class="thumb" src="/photos/${i.previewId}-item.jpg" alt="" loading="lazy">` : '<div class="thumb"></div>'}
       <div class="main">
-        <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}${i.tracked ? ' <span class="tag">numbered</span>' : ''}</div>
+        <div class="name">${esc(i.name)}${i.kind === 'set' ? ' <span class="tag">set</span>' : ''}${i.tracked ? ' <span class="tag">numbered</span>' : ''}${i.consumable ? ' <span class="tag">used up</span>' : ''}</div>
         <div class="where">${bits}</div>
       </div>
       <button class="add" data-id="${i.id}" data-name="${esc(i.name)}" title="add to list" aria-label="add to list">+</button>
@@ -69,8 +100,17 @@ window.Nerva = (function () {
   // route with an HTML error page, which used to surface as a JSON parse error
   // and told nobody anything; say what it actually means instead.
   async function api(method, url, body) {
-    const r = await fetch(url, body === undefined ? { method }
-      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return answer(await fetch(url, body === undefined ? { method }
+      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+  }
+  // Filing a list: the text goes as it is, the verb and its options in the
+  // query (`{ due }` for out, `{ checkout }` for in).
+  async function file(verb, text, opts) {
+    const query = new URLSearchParams({ verb });
+    for (const [k, v] of Object.entries(opts || {})) if (v) query.set(k, v);
+    return answer(await fetch('/api/file?' + query, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: text }));
+  }
+  async function answer(r) {
     const text = await r.text();
     let data;
     try { data = text ? JSON.parse(text) : {}; }
@@ -79,6 +119,7 @@ window.Nerva = (function () {
         ? 'This server does not know that request. It is probably running an older version of Nerva: restart it.'
         : `The server replied with something that is not an answer (${r.status}).`);
     }
+    if (r.status === 401 && data.login) { toLogin(); throw new Error('log in first'); }
     if (!r.ok) throw new Error(data.error || `failed (${r.status})`);
     return data;
   }
@@ -106,6 +147,7 @@ window.Nerva = (function () {
   // The whole photo flow: pick, shrink, optionally highlight with a finger.
   // Returns a JPEG blob ready to upload, or null if the user backed out.
   async function photoFromCamera() {
+    if (!me) { toLogin(); return null; }   // before the photo is taken, not after
     const file = await pickPhoto();
     if (!file) return null;
     const small = await resizePhoto(file);
@@ -115,6 +157,7 @@ window.Nerva = (function () {
 
   async function uploadPhoto(id, type, blob) {
     const r = await fetch(`/api/items/${id}/photo?type=${type}`, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob });
+    if (r.status === 401) { toLogin(); throw new Error('log in first'); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'upload failed');
     refreshCatalogue();
@@ -122,22 +165,26 @@ window.Nerva = (function () {
   }
   async function removePhoto(id, type) {
     const r = await fetch(`/api/items/${id}/photo?type=${type}`, { method: 'DELETE' });
+    if (r.status === 401) { toLogin(); throw new Error('log in first'); }
     if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || 'could not remove');
     refreshCatalogue();
   }
   // Locations and shelves: same upload, different owner.
   async function uploadPlacePhoto(placeId, blob) {
     const r = await fetch(`/api/places/${placeId}/photo`, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob });
+    if (r.status === 401) { toLogin(); throw new Error('log in first'); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'upload failed');
     return d;
   }
   async function removePlacePhoto(placeId) {
     const r = await fetch(`/api/places/${placeId}/photo`, { method: 'DELETE' });
+    if (r.status === 401) { toLogin(); throw new Error('log in first'); }
     if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || 'could not remove');
   }
   async function deleteItem(id) {
     const r = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+    if (r.status === 401) { toLogin(); throw new Error('log in first'); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'could not delete');
     refreshCatalogue();
@@ -150,7 +197,7 @@ window.Nerva = (function () {
   }
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  return { esc, api, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
+  return { esc, api, file, day, outText, get me() { return me; }, setMe, whoami, toLogin, loadCatalogue, refreshCatalogue, get catalogue() { return catalogue; }, get config() { return config; }, listText, setList, addLine, listCount,
     nav, status, itemRow, wireAdd, appendLine: append, resizePhoto, pickPhoto, photoFromCamera, uploadPhoto, removePhoto,
     uploadPlacePhoto, removePlacePhoto, deleteItem };
 })();
